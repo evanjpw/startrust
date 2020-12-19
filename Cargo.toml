@@ -1,0 +1,16 @@
+[package]
+name = "startrust"
+version = "0.1.0"
+authors = ["Evan Williams <evan.williams@pathai.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+thiserror = "1.0"
+beep = "0.2"
+dimensioned = "0.6"  # Was 7.0, but it doesn't work with `beep`, to my knowledge
+#num_traits = "0.2".14
+[dependencies.num-traits]
+version = "0.2"
+default-features = false
