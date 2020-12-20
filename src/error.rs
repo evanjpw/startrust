@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum StarTrustError {
     #[error("IoError: {0}")]
     IoError(std::io::Error),
+    #[error("GameStateError: {0}")]
+    GameStateError(String),
     #[error("GeneralError: {0}")]
     GeneralError(String),
 }

@@ -40,7 +40,7 @@ fn main() -> Result<(), StarTrustError> {
         clrscr(&mut sout)?;
         title(&mut sout)?;
 
-        let _game = the_game.play()?;
+        let _game = the_game.play(&mut sout)?;
 
         let _ = write!(sout, "\nTRY AGAIN? ").map_err(|e| {
             let e: StarTrustError = e.into();
