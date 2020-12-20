@@ -10,7 +10,10 @@ edition = "2018"
 thiserror = "1.0"
 beep = "0.2"
 dimensioned = "0.6"  # Was 7.0, but it doesn't work with `beep`, to my knowledge
-#num_traits = "0.2".14
+derive_builder = "0.9.0"
+rand = "0.8"
+num_enum = "0.5.1"
+#traits2.14
 [dependencies.num-traits]
 version = "0.2"
 default-features = false

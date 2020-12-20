@@ -37,7 +37,7 @@ where
 /// Argument(s):  none
 /// Description:  Clears the keyboard buffer.
 /// Includes:     conio.h
-fn clearkeyboard<R: BufRead>(stdin: R) {
+fn clearkeyboard<R: BufRead>(_stdin: R) {
     // while (kbhit()) getch();
 } // End clearkeyboard
 
@@ -47,7 +47,7 @@ fn clearkeyboard<R: BufRead>(stdin: R) {
 /// Description:  Gets a line of text from the stream and strips the
 /// non-printing characters at the end of the line
 /// Includes:     stdio.h
-pub fn fgetline<R: BufRead>(stream: R) -> Result<String, StarTrustError> //char *buff,int blen,FILE *stream
+pub fn fgetline<R: BufRead>(_stream: R) -> Result<String, StarTrustError> //char *buff,int blen,FILE *stream
 {
     // int j;
     //
@@ -62,7 +62,7 @@ pub fn fgetline<R: BufRead>(stream: R) -> Result<String, StarTrustError> //char 
 } // End fgetline
 
 /// Get Y or N from user and place result in ans
-pub fn yesno<R: BufRead, W: Write>(stdin: &R, stdout: &mut W) -> Result<char, StarTrustError> {
+pub fn yesno<R: BufRead, W: Write>(_stdin: &R, stdout: &mut W) -> Result<char, StarTrustError> {
     // ans='X';
     // while ((ans!='Y')&&(ans!='N'))
     // {
@@ -81,6 +81,7 @@ pub fn keytocont() {
     // getch();
     // clearkeyboard();
     // cprintf("\r\n");
+    todo!()
 }
 
 // ********************************************************************

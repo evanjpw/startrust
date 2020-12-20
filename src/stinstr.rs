@@ -1,6 +1,6 @@
 //! # strartrust::stinstr
 //!
-//! Write the instructions to the user
+//! Write the INSTRUCTIONS to the user
 
 use crate::error::StarTrustError;
 use crate::interaction::{clrscr, yesno};
@@ -27,11 +27,12 @@ pub fn showinst<R: BufRead, W: Write>(sin: &R, sout: &mut W) -> StResult<()> {
         if ans != 'N' {
             return Ok(());
         }
+        clrscr(sout)?;
 
-        write!(sout, "{}", instructions).map_err(|e| {
+        write!(sout, "{}", INSTRUCTIONS).map_err(|e| {
             let e: StarTrustError = e.into();
             e
-        });
+        })?;
 
         write!(sout, "\n\nREPEAT THESE INSTRUCTIONS (Y/N)?").map_err(|e| {
             let e: StarTrustError = e.into();
@@ -40,7 +41,7 @@ pub fn showinst<R: BufRead, W: Write>(sin: &R, sout: &mut W) -> StResult<()> {
     }
 }
 
-const instructions: &str = r"   IT IS STARDATE 3421 AND THE FEDERATION IS BEING INVADED
+const INSTRUCTIONS: &str = r"   IT IS STARDATE 3421 AND THE FEDERATION IS BEING INVADED
 BY A BAND OF KLINGON 'PIRATES' WHOSE OBJECTIVE IS TO TEST
 OUR DEFENSES.  IF EVEN ONE SURVIVES THE TRIAL PERIOD,
 KLINGON HEADQUARTERS WILL LAUNCH AN ALL-OUT ATTACK.
