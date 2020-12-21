@@ -83,7 +83,7 @@ pub fn fnd(k1_i: u8, k2_i: u8, s1: u8, s2: u8) -> f64 {
 
 /// See if r1 is less than r2, BASIC style
 pub fn lt(r1: f64, r2: f64) -> i32 {
-    if (r1 < r2) {
+    if r1 < r2 {
         -1 /* BASIC true = -1 */
     } else {
         0 /* BASIC false = 0 */
@@ -92,7 +92,7 @@ pub fn lt(r1: f64, r2: f64) -> i32 {
 
 /// See if r1 is greater than r2, BASIC style
 pub fn gt(r1: f64, r2: f64) -> i32 {
-    if (r1 > r2) {
+    if r1 > r2 {
         -1 /* BASIC true = -1 */
     } else {
         0 /* BASIC false = 0 */

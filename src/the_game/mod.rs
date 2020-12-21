@@ -1,15 +1,21 @@
 //! # startrust::the_game
 
-use std::fmt::{Display, Formatter};
 use std::io::{BufRead, Write};
-use std::ops;
-use std::ops::{Index, IndexMut};
 
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::error::StarTrustError::GameStateError;
+pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
+use crate::the_game::quadrant::{Quadrant, QuadrantMap};
+pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
+use crate::the_game::stardate::StarDate;
 use crate::util::{findslot, gt, lt, randinit, rnd, setrndxy};
 use crate::{StResult, StarTrustError};
+
+mod config;
+mod quadrant;
+mod sector;
+mod stardate;
 
 const DS: &'static [&'static str] = &[
     "WARP ENGINES",
@@ -19,305 +25,6 @@ const DS: &'static [&'static str] = &[
     "PHOTON TORPEDOES",
     "GALACTIC RECORDS",
 ];
-
-#[derive(Copy, Clone, Debug)]
-pub struct Quadrant(u8, u8);
-
-// TODO: Maybe allow invalid quadrants?
-impl Quadrant {
-    fn new(x: u8, y: u8) -> Self {
-        if x > 7 || y > 7 {
-            panic!(
-                "Could not create quadrant ({}, {}), value out of range",
-                x, y
-            )
-        }
-        Self(x, y)
-    }
-
-    fn values(&self) -> (u8, u8) {
-        (self.0, self.1)
-    }
-
-    fn is_in_range(&self) -> bool {
-        // Original definition: `(q1<0)||(q1>7)||(q2<0)||(q2>7)`
-        // This quadrant can never be out of range, so it's always true
-        true
-    }
-}
-
-impl Index<Quadrant> for QuadrantMap {
-    type Output = i16;
-
-    fn index(&self, index: Quadrant) -> &Self::Output {
-        let (q1, q2) = index.values();
-        &self.quad[q1 as usize][q2 as usize]
-    }
-}
-
-impl IndexMut<Quadrant> for QuadrantMap {
-    fn index_mut(&mut self, index: Quadrant) -> &mut Self::Output {
-        let (q1, q2) = index.values();
-        &mut self.quad[q1 as usize][q2 as usize]
-    }
-}
-
-pub struct QuadrantMap {
-    quad: Vec<Vec<i16>>,
-}
-
-impl QuadrantMap {
-    fn new() -> Self {
-        Self {
-            quad: vec![vec![0i16; 8]; 8],
-        }
-    }
-}
-
-// This has to be a byte string not a `str` because Rust worries about UTF-8 (very reasonably)
-const QS: &[u8] = b"U.EKB*";
-
-///
-#[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
-#[repr(u8)]
-pub enum SectorContents {
-    #[num_enum(default)]
-    Unknown = 0,
-    Empty = 1,
-    Enterprise = 2,
-    Klingon = 3,
-    Starbase = 4,
-    Star = 5,
-}
-
-impl SectorContents {
-    pub fn to_char(&self) -> char {
-        let index: u8 = (*self).into();
-        QS[index as usize] as char
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct Sector(u8, u8);
-
-impl Sector {
-    pub(crate) fn new(x: u8, y: u8) -> Self {
-        if x > 7 || y > 7 {
-            panic!("Could not create sector ({}, {}), value out of range", x, y)
-        }
-        Self(x, y)
-    }
-
-    fn values(&self) -> (u8, u8) {
-        (self.0, self.1)
-    }
-
-    fn x(&self) -> u8 {
-        self.0
-    }
-
-    fn y(&self) -> u8 {
-        self.1
-    }
-}
-
-pub struct SectorMap {
-    sect: Vec<Vec<u8>>,
-}
-
-impl Index<Sector> for SectorMap {
-    type Output = u8;
-
-    fn index(&self, index: Sector) -> &Self::Output {
-        let (x, y) = index.values();
-        &self.sect[x as usize][y as usize]
-    }
-}
-
-impl IndexMut<Sector> for SectorMap {
-    fn index_mut(&mut self, index: Sector) -> &mut Self::Output {
-        let (x, y) = index.values();
-        &mut self.sect[x as usize][y as usize]
-    }
-}
-
-impl SectorMap {
-    fn new() -> Self {
-        Self {
-            sect: vec![vec![0u8; 8]; 8],
-        }
-    }
-
-    pub(crate) fn sector_contents_at(&self, sector: Sector) -> SectorContents {
-        self[sector].into()
-    }
-
-    pub(crate) fn sector_contents_at_coords(&self, x: u8, y: u8) -> SectorContents {
-        let sector = Sector::new(x, y);
-        self.sector_contents_at(sector)
-    }
-
-    fn setupquad(the_game: &mut TheGame) {
-        let quadrant = the_game.current_quadrant();
-        let s9 = the_game.s9();
-        // TODO: I recall needing `a`, but it seems like it wasn't used. Maybe it is to set the
-        //  global "command" to "None".
-        // let mut a = 0;
-        let n: usize;
-        let s: usize;
-        let k: usize;
-
-        if !quadrant.is_in_range() {
-            n = 0;
-            s = 0;
-            k = 0;
-        } else {
-            let quad = &mut the_game.quad;
-            n = quad[quadrant].abs() as usize;
-            quad[quadrant] = n as i16;
-            s = n - (n / 10) * 10;
-            k = n / 100;
-        }
-        let b: usize = (n as f64 / 10.0f64 - (k * 10) as f64).floor() as usize;
-        let (x, y) = setrndxy();
-        let current_sector = Sector::new(x, y);
-        the_game.set_current_sector(current_sector);
-        let sect = &mut the_game.sect;
-
-        for i in 0..8 {
-            for j in 0..8 {
-                sect[Sector::new(i, j)] = SectorContents::Empty.into();
-            }
-        }
-
-        sect[current_sector] = SectorContents::Enterprise.into();
-
-        let mut ky = y;
-        let mut kx: u8;
-        for i in 0..8 {
-            the_game.k3[i] = 0.0;
-            kx = 8;
-            if i < k {
-                let sector = findslot(sect);
-                kx = sector.x();
-                ky = sector.y();
-                sect[sector] = SectorContents::Klingon.into();
-                the_game.k3[i] = s9;
-            }
-            the_game.k1[i] = kx;
-            the_game.k2[i] = ky;
-        }
-        if b > 0 {
-            let sector = findslot(sect);
-            sect[sector] = SectorContents::Starbase.into();
-        }
-
-        for _ in 0..s {
-            let sector = findslot(sect);
-            sect[sector] = SectorContents::Star.into();
-        }
-        the_game.b = b as u32;
-    } /* End setupquad */
-}
-
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Copy, Clone, Default)]
-pub struct StarDate(u16);
-
-impl StarDate {
-    fn new(t: u16) -> Self {
-        Self(t)
-    }
-}
-
-impl Display for StarDate {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl<I: Into<u16>> ops::Add<I> for StarDate {
-    type Output = StarDate;
-
-    fn add(self, rhs: I) -> StarDate {
-        StarDate(self.0 + rhs.into())
-    }
-}
-
-impl<I: Into<u16>> ops::AddAssign<I> for StarDate {
-    fn add_assign(&mut self, rhs: I) {
-        *self = StarDate(self.0 + rhs.into());
-    }
-}
-
-impl ops::Sub<StarDate> for StarDate {
-    type Output = u16;
-
-    fn sub(self, rhs: StarDate) -> u16 {
-        self.0 - rhs.0
-    }
-}
-
-#[derive(Builder, Copy, Clone, Debug)]
-#[builder(default)]
-pub struct TheGameDefs {
-    /// Initial Energy
-    e0: f64, // Probably could be `f32`
-    /// Initial Photon Torpedoes
-    p0: u16, // Probably should be `u8`
-    /// Initial StarDate
-    t0: StarDate,
-    /// Final StarDate
-    t9: StarDate,
-    x1: f64,
-    y1: f64,
-    x2: f64,
-    y2: f64,
-    x: u16,
-    y: u16,
-    aa: f64,
-    s9: f64,
-    k9: u16,
-    // #[builder(setter(skip))] #[builder]
-}
-
-impl TheGameDefs {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl Default for TheGameDefs {
-    fn default() -> Self {
-        let e0 = 4000.0;
-        let p0 = 10;
-        let t0 = StarDate::new(3421);
-        let t9 = StarDate::new(3451);
-        let x = 8;
-        let y = 1;
-        let x1 = 0.2075;
-        let y1 = 6.28;
-        let x2 = 3.28;
-        let y2 = 1.8;
-        let aa = 0.96;
-        let k9 = 0;
-        let s9 = 400.0;
-        Self {
-            t0,
-            t9,
-            e0,
-            p0,
-            x1,
-            y1,
-            x2,
-            y2,
-            x,
-            y,
-            aa,
-            s9,
-            k9,
-        }
-    }
-}
 
 pub struct TheGame {
     /// Current Energy
@@ -461,7 +168,7 @@ impl TheGame {
                 }
                 self.b = gt(rnd(), self.game_defs.aa) as u32;
                 b9 -= self.b as u16;
-                let quadrant = Quadrant(i, j);
+                let quadrant = Quadrant::new(i, j);
                 self.quad[quadrant] = (k as f64 * self.c + (self.b as f64) * self.w
                     - (rnd() * (x as f64) + (y as f64)).floor())
                     as i16;
@@ -504,7 +211,7 @@ impl TheGame {
     }
 
     fn set_current_sector(&mut self, sector: Sector) {
-        self.set_current_quadrant_from_coords(sector.0, sector.1)
+        self.set_current_quadrant_from_coords(sector.x(), sector.y())
     }
 
     fn set_current_sector_from_coords(&mut self, x: u8, y: u8) {
@@ -517,7 +224,7 @@ impl TheGame {
     }
 
     fn set_current_quadrant(&mut self, quadrant: Quadrant) {
-        self.set_current_quadrant_from_coords(quadrant.0, quadrant.1);
+        self.set_current_quadrant_from_coords(quadrant.x(), quadrant.y());
     }
 
     fn set_current_quadrant_from_coords(&mut self, x: u8, y: u8) {
@@ -544,7 +251,7 @@ impl TheGame {
         self.init(sout)?;
         self.newquad = true;
 
-        while (!gamecomp.is_done()) {
+        while !gamecomp.is_done() {
             /*
                if (newquad) setupquad();
                     newquad=FALSE;
@@ -768,9 +475,9 @@ impl TheGame {
                     break;
                 }
                 GameState::Lost => {
-                    if (self.t > self.game_defs.t9) {
+                    if self.t > self.game_defs.t9 {
                         writeln!(sout, "YOU RAN OUT OF TIME!")?;
-                    } else if (self.e <= 0.0) {
+                    } else if self.e <= 0.0 {
                         writeln!(sout, "YOU RAN OUT OF ENERGY!")?;
                     } else {
                         return Err(GameStateError(String::from(
@@ -798,20 +505,6 @@ impl TheGame {
             }
         }
 
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_game_builder() -> Result<(), String> {
-        let the_game_defs = TheGameDefsBuilder::default().build()?;
-        assert_eq!(StarDate(3421), the_game_defs.t0);
-        // assert_eq!(StarDate(3421), the_game.t);
-        assert_eq!(StarDate(3451), the_game_defs.t9);
         Ok(())
     }
 }
