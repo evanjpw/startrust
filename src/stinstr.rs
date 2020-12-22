@@ -17,7 +17,7 @@ pub fn title<W: Write>(sout: &mut W) -> StResult<()> {
     writeln!(sout, "===========\n").map_err(|e| e.into()) // The extra '\n' is intentional
 } /* End title */
 
-pub fn showinst<R: BufRead, W: Write>(sin: &R, sout: &mut W) -> StResult<()> {
+pub fn showinst<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
     write!(sout, "DO YOU NEED INSTRUCTIONS Y/N)? ").map_err(|e| {
         let e: StarTrustError = e.into();
         e

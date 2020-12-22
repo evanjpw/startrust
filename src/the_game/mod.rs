@@ -5,13 +5,17 @@ use std::io::{BufRead, Write};
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::error::StarTrustError::GameStateError;
+use crate::interaction::{beep, getinp, InputMode, InputValue};
+use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
 use crate::the_game::quadrant::{Quadrant, QuadrantMap};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
-use crate::util::{findslot, gt, lt, randinit, rnd, setrndxy};
+use crate::util::{findslot, fnd, gt, lt, randinit, rnd, setrndxy};
 use crate::{StResult, StarTrustError};
+use std::f64::consts::FRAC_PI_4;
 
+mod commands;
 mod config;
 mod quadrant;
 mod sector;
@@ -64,6 +68,9 @@ pub struct TheGame {
     /// Warp
     w: f64,
     b: u32,
+    /// The current condition of the Enterprise as a String
+    cond: &'static str,
+    saved_command: Command,
 }
 
 #[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
@@ -116,14 +123,14 @@ impl TheGame {
             c,
             w,
             b: 0,
+            cond: "",
+            saved_command: Command::Undefined,  // the global version of `a`
         }
     }
-    /*        */
     /*
-    int ,a,
-        x7,y7,i,j,s,;
+    int ,,x7,y7,i,j,s,;
     double x3,y3,n,rn,h,;
-    char ans,fbuff[81],cond[7],es[16],cmdbuff[8];
+    char ans,fbuff[81],[7]es[16],cmdbuff[8];
      */
 
     /// Repair anything that is down
@@ -232,13 +239,542 @@ impl TheGame {
         self.q2 = y;
     }
 
-    // Display current star date
+    /// Display current star date
     pub fn showstardate<W: Write>(&self, sout: &mut W) -> StResult<()> {
-        write!(sout, "\r\nIT IS STARDATE {}.\r\n", self.t).map_err(|e| {
+        write!(sout, "\nIT IS STARDATE {}.\n", self.t).map_err(|e| {
             let e: StarTrustError = e.into();
             e
         })
     } /* End showstardate */
+
+    /// Check condition
+    fn checkcond(&mut self) {
+        let s1 = self.s1 as i32;
+        let s2 = self.s2 as i32;
+        let e0 = self.game_defs.e0;
+        let p0 = self.game_defs.p0;
+        for i in (s1 - 1)..=(s1 + 1) {
+            for j in (s2 - 1)..=(s2 + 1) {
+                if (i >= 0) && (i <= 7) && (j >= 0) && (j <= 7) {
+                    let sector = Sector::new(i as u8, j as u8);
+                    if self.sect[sector] == SectorContents::Starbase.into() {
+                        // Docked at starbase
+                        self.cond = "DOCKED";
+                        self.e = e0;
+                        self.p = p0;
+                        self.fixdamage();
+                        return;
+                    }
+                }
+            }
+        }
+        if self.k > 0 {
+            // Klingons present!
+            self.cond = "RED";
+        } else if self.e < (0.1 * e0) {
+            // Low energy
+            self.cond = "YELLOW";
+        } else {
+            // A-OK!
+            self.cond = "GREEN";
+        }
+    } /* End checkcond */
+
+    /// Show hit on Enterprise or Klingon
+    fn showhit<W: Write>(&self, sout: &mut W, i: usize, es: &str, n: f64, h: f64) -> StResult<()> {
+        writeln!(
+            sout,
+            "{:.3} UNIT HIT ON {} SECTOR {} - {}  ({:.3} LEFT)",
+            h,
+            es,
+            self.k1[i] + 1,
+            self.k2[i] + 1,
+            n
+        )
+        .map_err(|e| {
+            let e = e.into();
+            e
+        })
+    } /* End showhit */
+
+    /// Show estimated time for repair
+    fn showestreptime<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
+        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i]).map_err(|e| {
+            let e = e.into();
+            e
+        })
+    } /* End showestreptime */
+
+    /// Show damaged item
+    fn showdamage<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
+        write!(sout, "{} DAMAGED.  ", DS[i]).map_err(|e| {
+            let e: StarTrustError = e.into();
+            e
+        })?;
+        beep();
+        self.showestreptime(sout, i)
+    } /* End showdamage */
+
+    fn is_docked(&self) -> bool {
+        // This is an amazingly stupid way to do this, but it's how they do it
+        self.cond == "DOCKED"
+    }
+
+    /// Set up string for lr scan or galactic records
+    fn qstr(&self, i: u8, j: u8) -> String {
+        let quadrant = Quadrant::new(i, j);
+        // The printf format string was "%3.3i", which has a width of 3 digits and has leading 0s.
+        // I _think_.
+        format!("{:03}", self.quad[quadrant])
+    } /* End qstr */
+
+    /// Check for hits from Klingons
+    fn checkforhits<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+        if self.k < 1 {
+            /* No Klingons here! */
+            return Ok(());
+        }
+        if self.is_docked() {
+            writeln!(sout, "STARBASE PROTECTS ENTERPRISE.").map_err(|e| {
+                let e: StarTrustError = e.into();
+                e
+            })?;
+            return Ok(());
+        }
+        for i in 0..8 {
+            if self.k3[i] > 0.0 {
+                let mut h = self.k3[i] * 0.4 * rnd();
+                self.k3[i] -= h;
+                h /= fnd(self.k1[i], self.k2[i], self.s1, self.s2).powf(0.4);
+                self.e -= h;
+                let n: f64 = self.e;
+                self.showhit(sout, i, "ENTERPRISE FROM", n, h)?;
+            }
+        }
+        Ok(())
+    } /* End checkforhits */
+
+    /// Do long-range scan
+    fn lrscan<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+        let i = 2;
+        if self.d[i] > 0 {
+            // Long-range scan inoperative
+            self.showdamage(sout, i)?;
+            return Ok(());
+        }
+        let q1: i32 = self.q1 as i32;
+        let q2: i32 = self.q2 as i32;
+        writeln!(sout, "{} FOR QUADRANT {} - {}", DS[i], q1 + 1, q2 + 1).map_err(|e| {
+            let e: StarTrustError = e.into();
+            e
+        })?;
+        for i in (q1 - 1)..=(q1 + 1) {
+            for j in (q2 - 1)..=(q2 + 1) {
+                write!(sout, "   ").map_err(|e| {
+                    let e: StarTrustError = e.into();
+                    e
+                })?;
+                if (i < 0) || (i > 7) || (j < 0) || (j > 7) {
+                    write!(sout, "***").map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                } else {
+                    let quadrant = Quadrant::new(i as u8, j as u8);
+                    let value = self.quad[quadrant].abs();
+                    self.quad[quadrant] = value;
+                    let es = self.qstr(i as u8, j as u8);
+                    write!(sout, "{}", es).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                }
+            }
+            writeln!(sout).map_err(|e| {
+                let e: StarTrustError = e.into();
+                e
+            })?;
+        }
+        Ok(())
+    } /* End lrscan */
+
+    /// Do galactic records
+    fn galrecs<W: Write>(&self, sout: &mut W) -> StResult<()> {
+        let i = 5;
+        if self.d[i] > 0 {
+            // Galactic records inoperative
+            self.showdamage(sout, i)?;
+            return Ok(());
+        }
+        writeln!(sout, "CUMULATIVE GALACTIC MAP FOR STARDATE {}", self.t).map_err(|e| {
+            let e: StarTrustError = e.into();
+            e
+        })?;
+        for i in 0..8 {
+            for j in 0..8 {
+                write!(sout, "  ").map_err(|e| {
+                    let e: StarTrustError = e.into();
+                    e
+                })?;
+                let quadrant = Quadrant::new(i, j);
+                if self.quad[quadrant] < 0 {
+                    write!(sout, "***").map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                } else {
+                    let es = self.qstr(i as u8, j as u8);
+                    write!(sout, "{}", es).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                }
+            }
+            writeln!(sout).map_err(|e| {
+                let e: StarTrustError = e.into();
+                e
+            })?;
+        }
+        Ok(())
+    } /* End galrecs */
+
+    /// Do short-range scan
+    fn srscan<W: Write>(&mut self, sout: &mut W, a: i32) -> StResult<()> {
+        self.checkcond(); //?
+        if a == 0
+        /* Initial entry into quadrant */
+        {
+            self.checkforhits(sout)?;
+            if (self.e <= 0.0) {
+                /* Ran out of energy! */
+                return Ok(());
+            }
+        }
+        let i = 1;
+        if self.d[i] > 0 {
+            // Short-range scan inoperative
+            self.showdamage(sout, i)?;
+            return Ok(());
+        }
+        for i in 0..8 {
+            for j in 0..8 {
+                write!(sout, "{} ", self.sect.sector_char_at_coords(i, j)).map_err(|e| {
+                    let e: StarTrustError = e.into();
+                    e
+                })?;
+            }
+            write!(sout, "  ").map_err(|e| {
+                let e: StarTrustError = e.into();
+                e
+            })?;
+            match i {
+                0 => {
+                    writeln!(sout, "YEARS = {}", self.game_defs.t9 - self.t).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                    // break;
+                }
+                1 => {
+                    writeln!(sout, "STARDATE = {}", self.t).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                    // break;
+                }
+                2 => {
+                    writeln!(sout, "CONDITION: {}", self.cond).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                    // break;
+                }
+                3 => {
+                    writeln!(sout, "QUADRANT = {} - {}", self.q1 + 1, self.q2 + 1).map_err(
+                        |e| {
+                            let e: StarTrustError = e.into();
+                            e
+                        },
+                    )?;
+                    // break;
+                }
+                4 => {
+                    writeln!(sout, "SECTOR = {} - {}", self.s1 + 1, self.s2 + 1).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                    // break;
+                }
+                5 => {
+                    writeln!(sout, "ENERGY = {:03}", self.e) // printf format string was "%.3f"
+                        .map_err(|e| {
+                            let e: StarTrustError = e.into();
+                            e
+                        })?;
+                    // break;
+                }
+                6 => {
+                    writeln!(sout, "{} = {}", DS[4], self.p).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                    // break;
+                }
+                7 => {
+                    writeln!(sout, "KLINGONS LEFT = {}", self.k9).map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                    // break;
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    } /* End srscan */
+
+    /// Fire phasers
+    fn phasers<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+        let mut x = 0.0;
+        let i = 3;
+        if self.d[i] > 0 {
+            // Phasers inoperative
+            self.showdamage(sout, i)?;
+            return Ok(());
+        }
+        loop {
+            write!(sout, "PHASERS READY: ENERGY UNITS TO FIRE? ").map_err(|e| {
+                let e: StarTrustError = e.into();
+                e
+            })?;
+            let gb = getinp(15, InputMode::Mode2);
+            writeln!(sout).map_err(|e| {
+                let e: StarTrustError = e.into();
+                e
+            })?;
+            if let InputValue::InputString(ibuff) = gb {
+                x = ibuff.parse()?;
+            } else {
+                x = 0.0;
+                break;
+            }
+            if x <= self.e {
+                break;
+            }
+            writeln!(sout, "ONLY GOT {:03}", self.e) // The printf format was "%.3f"
+                .map_err(|e| {
+                    let e: StarTrustError = e.into();
+                    e
+                })?;
+        }
+        self.e -= x;
+        let y3 = self.k as f64;
+        for i in 0..8 {
+            if self.k3[i] > 0.0 {
+                let f = fnd(self.k1[i], self.k2[i], self.s1, self.s2);
+                let h = x / (y3 * f.powf(0.4));
+                self.k3[i] -= h;
+                let n = self.k3[i];
+                self.showhit(sout, i, "KLINGON AT", n, h)?;
+                if self.k3[i] <= 0.0 {
+                    writeln!(sout, "**KLINGON DESTROYED**").map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                    self.k -= 1;
+                    self.k9 -= 1;
+                    let sector = Sector::new(self.k1[i], self.k2[i]);
+                    self.sect[sector] = 1;
+                    let quadrant = self.current_quadrant();
+                    self.quad[quadrant] -= 100;
+                }
+            }
+        }
+        Ok(())
+    } /* End phasers */
+
+    /// Do the path for warp or torpedo
+    fn dopath<W: Write>(&mut self, sout: &mut W, a: Command, n: f64) -> StResult<()> {
+        let mut y1 = self.s1 as f64 + 0.5;
+        let mut x1 = self.s2 as f64 + 0.5;
+        let mut y3 = (self.c - 1.0) as f64 * FRAC_PI_4; // `FRAC_PI_4` _was_ `0.785398`
+        let x3 = y3.cos();
+        y3 = -(y3.sin());
+        let mut inquad = true;
+        let mut shortmove = (a == Command::WarpEngines); // Command #1
+        for i in 0..(n as usize) {
+            y1 += y3;
+            x1 += x3;
+            let y2 = y1.floor();
+            let x2 = x1.floor();
+            let y7 = y2 as i32;
+            let x7 = x2 as i32;
+            if (x7 < 0) || (x7 > 7) || (y7 < 0) || (y7 > 7) {
+                inquad = false;
+                shortmove = false;
+                break;
+            }
+            if a == Command::PhotonTorpedos
+            // Command #5
+            {
+                /* Show torpedo track */
+                write!(sout, "{} - {}  ", y7 + 1, x7 + 1).map_err(|e| {
+                    let e: StarTrustError = e.into();
+                    e
+                })?;
+            }
+            if self.sect.sector_contents_at_coords(y7 as u8, x7 as u8) != SectorContents::Empty
+            // Content type 1
+            {
+                /* Object blocking move or hit by torpedo */
+                shortmove = false;
+                break;
+            }
+        }
+
+        if inquad {
+            // Still in quadrant -- short move, block, or torpedo hit
+            self.newquad = false;
+            writeln!(sout).map_err(|e| {
+                let e: StarTrustError = e.into();
+                e
+            })?;
+            if !shortmove {
+                if a == Command::WarpEngines
+                // Comman #1
+                {
+                    write!(sout, "BLOCKED BY ").map_err(|e| {
+                        let e: StarTrustError = e.into();
+                        e
+                    })?;
+                }
+                match self.sect.sector_contents_at_coords(y7, x7) {
+                    SectorContents::Klingon => {
+                        // case 3 :
+                        /* Klingon */
+                        // cprintf("KLINGON");
+                        if a == Command::PhotonTorpedos
+                        // Command #5
+                        {
+                            /* Torpedo */
+                            // for (i=0;i<8;i++){
+                            // if ((y7==k1[i])&&(x7==k2[i])) {k3[i]=0.0;}}
+                            // k--;
+                            // k9--;
+                        }
+                        // break;
+                    }
+                    SectorContents::Starbase => {
+                        // case 4 :
+                        /* Starbase */
+                        // cprintf("STARBASE");
+                        if a == Command::PhotonTorpedos
+                        // Command #5
+                        {
+                            /* Torpedo */
+                            b = 2;
+                        }
+                        // break;
+                    }
+                    SectorContents::Star => {
+                        // case 5 :
+                        /* Star */
+                        write!(sout, "STAR")
+                            .map_err(|e| {
+                                let e: StarTrustError = e.into();
+                                e
+                            })?
+                        ;
+                        if a == Command::PhotonTorpedos
+                        // Command #5
+                        {
+                            /* Torpedo */
+                            s -= 1;
+                        }
+                        // break;
+                    }
+                    _ => {
+                        return Err(StarTrustError::GameStateError(format!(
+                            "Ship blocked by unknown object"
+                        )))
+                    }
+                }
+                if a == Command::WarpEngines
+                // Command #1
+                /* Enterprise move */
+                {
+                    //         cprintf(" AT SECTOR %i - %i\r\n",y7+1,x7+1);
+                    //         y2=floor(y1-y3);
+                    //         x2=floor(x1-x3);
+                    //         y7=y2;
+                    //         x7=x2;
+                }
+            }
+            if a == Command::WarpEngines
+            // Command #1
+            {
+                        s1=y2;
+                        s2=x2;
+                        sect[s1][s2]=2;
+                // Flag to show we stayed within quadrant
+                self.saved_command = 2.into();
+            } else if a == Command::PhotonTorpedos
+            // Command #5
+            {
+                /* Torpedo */
+                        write!(sout, " DESTROYED!")
+                            .map_err(|e| {
+                                let e: StarTrustError = e.into();
+                                e
+                            })?
+                        ;
+                if b == 2 {
+                    b = 0;
+                                write!(sout, " . . . GOOD WORK!")
+                                    .map_err(|e| {
+                                        let e: StarTrustError = e.into();
+                                        e
+                                    })?
+                                ;
+                }
+                        writeln!(sout)
+                            .map_err(|e| {
+                                let e: StarTrustError = e.into();
+                                e
+                            })?
+                        ;
+                //         sect[y7][x7]=1;
+                //         quad[q1][q2]=k*100+b*10+s;
+            }
+        } else {
+            // Out of quadrant -- move to new quadrant or torpedo miss
+            if a == Command::WarpEngines
+            // Command #1
+            {
+                // Move
+                self.newquad = true;
+                self.q1 =
+                    (self.q1 as f64 + self.w * y3 + (self.s1 as f64 + 0.5) / 8.0).floor() as u8;
+                self.q2 =
+                    (self.q2 as f64 + self.w * x3 + (self.s2 as f64 + 0.5) / 8.0).floor() as u8;
+                self.q1 =
+                    (self.q1 as i32 - lt(self.q1 as f64, 0.0) + gt(self.q1 as f64, 7.0)) as u8;
+                self.q2 =
+                    (self.q2 as i32 - lt(self.q2 as f64, 0.0) + gt(self.q2 as f64, 7.0)) as u8;
+            } else if a == Command::PhotonTorpedos
+            // Command #5
+            {
+                // Torpedo
+                writeln!(sout, "MISSED!")
+                    .map_err(|e| {
+                    let e: StarTrustError = e.into();
+                    e
+                })?
+                ;
+            }
+        }
+        Ok(())
+    } /* End dopath */
 
     pub fn s9(&self) -> f64 {
         self.game_defs.s9
@@ -472,7 +1008,7 @@ impl TheGame {
                         t - t0,
                         rating,
                     )?;
-                    break;
+                    // break;
                 }
                 GameState::Lost => {
                     if self.t > self.game_defs.t9 {
@@ -491,11 +1027,11 @@ impl TheGame {
                         self.k9
                     )?;
                     writeln!(sout, "YOU ARE DEMOTED TO CABIN BOY!")?;
-                    break;
+                    // break;
                 }
                 GameState::Quit => {
                     writeln!(sout, "OKAY, QUITTER -- NO KUDOS FOR YOU.")?;
-                    break;
+                    // break;
                 }
                 GameState::InProgress => {
                     return Err(StarTrustError::GameStateError(String::from(

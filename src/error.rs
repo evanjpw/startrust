@@ -6,6 +6,8 @@ pub enum StarTrustError {
     IoError(std::io::Error),
     #[error("GameStateError: {0}")]
     GameStateError(String),
+    #[error("ParseFloatError: {0}")]
+    ParseFloatError(std::num::ParseFloatError),
     #[error("GeneralError: {0}")]
     GeneralError(String),
 }
@@ -13,6 +15,12 @@ pub enum StarTrustError {
 impl From<std::io::Error> for StarTrustError {
     fn from(value: std::io::Error) -> Self {
         StarTrustError::IoError(value)
+    }
+}
+
+impl From<std::num::ParseFloatError> for StarTrustError {
+    fn from(value: std::num::ParseFloatError) -> Self {
+        StarTrustError::ParseFloatError(value)
     }
 }
 

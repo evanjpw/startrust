@@ -1,8 +1,8 @@
 use std::ops::{Index, IndexMut};
 
-use num_enum::{FromPrimitive, IntoPrimitive};
 use crate::util::{findslot, setrndxy};
 use crate::TheGame;
+use num_enum::{FromPrimitive, IntoPrimitive};
 
 // This has to be a byte string not a `str` because Rust worries about UTF-8 (very reasonably)
 const QS: &[u8] = b"U.EKB*";
@@ -87,12 +87,15 @@ impl SectorMap {
         self.sector_contents_at(sector)
     }
 
+    pub(crate) fn sector_char_at_coords(&self, x: u8, y: u8) -> char {
+        let index = self.sector_contents_at_coords(x, y);
+        index.to_char()
+    }
     fn setupquad(the_game: &mut TheGame) {
         let quadrant = the_game.current_quadrant();
         let s9 = the_game.s9();
-        // TODO: I recall needing `a`, but it seems like it wasn't used. Maybe it is to set the
-        //  global "command" to "None".
-        // let mut a = 0;
+        // Set the  global "command" to "None".
+        the_game.saved_command = 0.into();
         let n: usize;
         let s: usize;
         let k: usize;

@@ -27,10 +27,12 @@ fn get_game_config() -> StResult<TheGameDefs> {
 }
 
 fn main() -> Result<(), StarTrustError> {
+    pretty_env_logger::init();
+
     let sin = stdin();
     let mut sout = stdout();
     title(&mut sout)?;
-    showinst(&sin.lock(), &mut sout)?;
+    showinst(&mut sin.lock(), &mut sout)?;
 
     let the_game_config = get_game_config()?;
 
@@ -46,7 +48,7 @@ fn main() -> Result<(), StarTrustError> {
             let e: StarTrustError = e.into();
             e
         })?;
-        let ans = yesno(&sin.lock(), &mut sout)?;
+        let ans = yesno(&mut sin.lock(), &mut sout)?;
         if ans != 'Y' {
             return Ok(());
         }

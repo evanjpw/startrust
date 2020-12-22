@@ -1,15 +1,15 @@
-// #[macro_use]
-extern crate dimensioned as dim;
 #[macro_use]
 extern crate derive_builder;
 
-pub use error::{StarTrustError, StResult};
+extern crate dimensioned as dim;
+
+pub use error::{StResult, StarTrustError};
+pub use interaction::{clrscr, yesno};
 pub use stinstr::{showinst, title};
+pub use the_game::{TheGame, TheGameDefs, TheGameDefsBuilder};
 
 mod error;
-mod the_game;
-pub use the_game::{TheGame, TheGameDefs, TheGameDefsBuilder};
 mod interaction;
-pub use interaction::{clrscr, yesno};
 mod stinstr;
+mod the_game;
 mod util;

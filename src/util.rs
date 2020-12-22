@@ -45,10 +45,6 @@ pub fn randinit() -> f64 {
     0.0f64
 } /* End randinit */
 
-//random, , , vvoi**voidvoidwhile (TRUE)sect[][]<2break;(u8, u8)_coordsx, ydoubledoublereturn;
-/*return;
-doublevoiddoublereturn r-floor(r);doubledoublevoid,,00 return;intdoubledoublereturnreturn;;int
- */
 
 /// Get fractional part of (double) real number
 fn frac(r: f64) -> f64 {
