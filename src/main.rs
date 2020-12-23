@@ -44,10 +44,7 @@ fn main() -> Result<(), StarTrustError> {
 
         let _game = the_game.play(&mut sout)?;
 
-        let _ = write!(sout, "\nTRY AGAIN? ").map_err(|e| {
-            let e: StarTrustError = e.into();
-            e
-        })?;
+        let _ = write!(sout, "\nTRY AGAIN? ")?;
         let ans = yesno(&mut sin.lock(), &mut sout)?;
         if ans != 'Y' {
             return Ok(());

@@ -10,18 +10,12 @@ use std::io::{BufRead, Write};
 /// Show program title
 pub fn title<W: Write>(sout: &mut W) -> StResult<()> {
     clrscr(sout)?;
-    writeln!(sout, "STAR TREK!!").map_err(|e| {
-        let e: StarTrustError = e.into();
-        e
-    })?;
+    writeln!(sout, "STAR TREK!!")?;
     writeln!(sout, "===========\n").map_err(|e| e.into()) // The extra '\n' is intentional
 } /* End title */
 
 pub fn showinst<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
-    write!(sout, "DO YOU NEED INSTRUCTIONS Y/N)? ").map_err(|e| {
-        let e: StarTrustError = e.into();
-        e
-    })?;
+    write!(sout, "DO YOU NEED INSTRUCTIONS Y/N)? ")?;
     loop {
         let ans = yesno(sin, sout)?;
         if ans != 'N' {
@@ -29,15 +23,9 @@ pub fn showinst<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()>
         }
         clrscr(sout)?;
 
-        write!(sout, "{}", INSTRUCTIONS).map_err(|e| {
-            let e: StarTrustError = e.into();
-            e
-        })?;
+        write!(sout, "{}", INSTRUCTIONS)?;
 
-        write!(sout, "\n\nREPEAT THESE INSTRUCTIONS (Y/N)?").map_err(|e| {
-            let e: StarTrustError = e.into();
-            e
-        })?;
+        write!(sout, "\n\nREPEAT THESE INSTRUCTIONS (Y/N)?")?;
     }
 }
 

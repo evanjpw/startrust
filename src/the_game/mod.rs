@@ -8,7 +8,7 @@ use crate::error::StarTrustError::GameStateError;
 use crate::interaction::{beep, getinp, InputMode, InputValue};
 use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
-use crate::the_game::quadrant::{Quadrant, QuadrantMap};
+use crate::the_game::quadrant::{Quadrant, QuadrantMap, setupquad};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
 use crate::util::{findslot, fnd, gt, lt, randinit, rnd, setrndxy};
@@ -71,6 +71,7 @@ pub struct TheGame {
     /// The current condition of the Enterprise as a String
     cond: &'static str,
     saved_command: Command,
+    s: i32,
 }
 
 #[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
@@ -124,11 +125,12 @@ impl TheGame {
             w,
             b: 0,
             cond: "",
-            saved_command: Command::Undefined,  // the global version of `a`
+            saved_command: Command::Undefined, // the global version of `a`
+            s: 0,
         }
     }
     /*
-    int ,,x7,y7,i,j,s,;
+    int ,,x7,y7,i,j,;
     double x3,y3,n,rn,h,;
     char ans,fbuff[81],[7]es[16],cmdbuff[8];
      */
@@ -299,7 +301,8 @@ impl TheGame {
 
     /// Show estimated time for repair
     fn showestreptime<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
-        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i]).map_err(|e| {
+        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i])
+            .map_err(|e| {
             let e = e.into();
             e
         })
@@ -307,10 +310,11 @@ impl TheGame {
 
     /// Show damaged item
     fn showdamage<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
-        write!(sout, "{} DAMAGED.  ", DS[i]).map_err(|e| {
-            let e: StarTrustError = e.into();
-            e
-        })?;
+        write!(sout, "{} DAMAGED.  ", DS[i])?;
+        //     .map_err(|e| {
+        //     let e: StarTrustError = e.into();
+        //     e
+        // })
         beep();
         self.showestreptime(sout, i)
     } /* End showdamage */
@@ -335,10 +339,11 @@ impl TheGame {
             return Ok(());
         }
         if self.is_docked() {
-            writeln!(sout, "STARBASE PROTECTS ENTERPRISE.").map_err(|e| {
-                let e: StarTrustError = e.into();
-                e
-            })?;
+            writeln!(sout, "STARBASE PROTECTS ENTERPRISE.")?;
+            //     .map_err(|e| {
+            //     let e: StarTrustError = e.into();
+            //     e
+            // })
             return Ok(());
         }
         for i in 0..8 {
@@ -364,36 +369,41 @@ impl TheGame {
         }
         let q1: i32 = self.q1 as i32;
         let q2: i32 = self.q2 as i32;
-        writeln!(sout, "{} FOR QUADRANT {} - {}", DS[i], q1 + 1, q2 + 1).map_err(|e| {
-            let e: StarTrustError = e.into();
-            e
-        })?;
+        writeln!(sout, "{} FOR QUADRANT {} - {}", DS[i], q1 + 1, q2 + 1)?;
+        //     .map_err(|e| {
+        //     let e: StarTrustError = e.into();
+        //     e
+        // })
         for i in (q1 - 1)..=(q1 + 1) {
             for j in (q2 - 1)..=(q2 + 1) {
-                write!(sout, "   ").map_err(|e| {
-                    let e: StarTrustError = e.into();
-                    e
-                })?;
+                write!(sout, "   ")?;
+                //     .map_err(|e| {
+                //     let e: StarTrustError = e.into();
+                //     e
+                // })
                 if (i < 0) || (i > 7) || (j < 0) || (j > 7) {
-                    write!(sout, "***").map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
+                    write!(sout, "***")?;
+                    //     .map_err(|e| {
+                    //     let e: StarTrustError = e.into();
+                    //     e
+                    // })
                 } else {
                     let quadrant = Quadrant::new(i as u8, j as u8);
                     let value = self.quad[quadrant].abs();
                     self.quad[quadrant] = value;
                     let es = self.qstr(i as u8, j as u8);
-                    write!(sout, "{}", es).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
+                    write!(sout, "{}", es)?;
+                    //     .map_err(|e| {
+                    //     let e: StarTrustError = e.into();
+                    //     e
+                    // })
                 }
             }
-            writeln!(sout).map_err(|e| {
-                let e: StarTrustError = e.into();
-                e
-            })?;
+            writeln!(sout)?;
+            //     .map_err(|e| {
+            //     let e: StarTrustError = e.into();
+            //     e
+            // })
         }
         Ok(())
     } /* End lrscan */
@@ -406,34 +416,19 @@ impl TheGame {
             self.showdamage(sout, i)?;
             return Ok(());
         }
-        writeln!(sout, "CUMULATIVE GALACTIC MAP FOR STARDATE {}", self.t).map_err(|e| {
-            let e: StarTrustError = e.into();
-            e
-        })?;
+        writeln!(sout, "CUMULATIVE GALACTIC MAP FOR STARDATE {}", self.t)?;
         for i in 0..8 {
             for j in 0..8 {
-                write!(sout, "  ").map_err(|e| {
-                    let e: StarTrustError = e.into();
-                    e
-                })?;
+                write!(sout, "  ")?;
                 let quadrant = Quadrant::new(i, j);
                 if self.quad[quadrant] < 0 {
-                    write!(sout, "***").map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
+                    write!(sout, "***")?;
                 } else {
                     let es = self.qstr(i as u8, j as u8);
-                    write!(sout, "{}", es).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
+                    write!(sout, "{}", es)?;
                 }
             }
-            writeln!(sout).map_err(|e| {
-                let e: StarTrustError = e.into();
-                e
-            })?;
+            writeln!(sout)?;
         }
         Ok(())
     } /* End galrecs */
@@ -445,7 +440,7 @@ impl TheGame {
         /* Initial entry into quadrant */
         {
             self.checkforhits(sout)?;
-            if (self.e <= 0.0) {
+            if self.e <= 0.0 {
                 /* Ran out of energy! */
                 return Ok(());
             }
@@ -458,74 +453,33 @@ impl TheGame {
         }
         for i in 0..8 {
             for j in 0..8 {
-                write!(sout, "{} ", self.sect.sector_char_at_coords(i, j)).map_err(|e| {
-                    let e: StarTrustError = e.into();
-                    e
-                })?;
+                write!(sout, "{} ", self.sect.sector_char_at_coords(i, j))?;
             }
-            write!(sout, "  ").map_err(|e| {
-                let e: StarTrustError = e.into();
-                e
-            })?;
+            write!(sout, "  ")?;
             match i {
                 0 => {
-                    writeln!(sout, "YEARS = {}", self.game_defs.t9 - self.t).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
-                    // break;
+                    writeln!(sout, "YEARS = {}", self.game_defs.t9 - self.t)?;
                 }
                 1 => {
-                    writeln!(sout, "STARDATE = {}", self.t).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
-                    // break;
+                    writeln!(sout, "STARDATE = {}", self.t)?;
                 }
                 2 => {
-                    writeln!(sout, "CONDITION: {}", self.cond).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
-                    // break;
+                    writeln!(sout, "CONDITION: {}", self.cond)?;
                 }
                 3 => {
-                    writeln!(sout, "QUADRANT = {} - {}", self.q1 + 1, self.q2 + 1).map_err(
-                        |e| {
-                            let e: StarTrustError = e.into();
-                            e
-                        },
-                    )?;
-                    // break;
+                    writeln!(sout, "QUADRANT = {} - {}", self.q1 + 1, self.q2 + 1)?;
                 }
                 4 => {
-                    writeln!(sout, "SECTOR = {} - {}", self.s1 + 1, self.s2 + 1).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
-                    // break;
+                    writeln!(sout, "SECTOR = {} - {}", self.s1 + 1, self.s2 + 1)?;
                 }
                 5 => {
-                    writeln!(sout, "ENERGY = {:03}", self.e) // printf format string was "%.3f"
-                        .map_err(|e| {
-                            let e: StarTrustError = e.into();
-                            e
-                        })?;
-                    // break;
+                    writeln!(sout, "ENERGY = {:03}", self.e)?; // printf format string was "%.3f"
                 }
                 6 => {
-                    writeln!(sout, "{} = {}", DS[4], self.p).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
-                    // break;
+                    writeln!(sout, "{} = {}", DS[4], self.p)?;
                 }
                 7 => {
-                    writeln!(sout, "KLINGONS LEFT = {}", self.k9).map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
-                    // break;
+                    writeln!(sout, "KLINGONS LEFT = {}", self.k9)?;
                 }
                 _ => {}
             }
@@ -543,15 +497,9 @@ impl TheGame {
             return Ok(());
         }
         loop {
-            write!(sout, "PHASERS READY: ENERGY UNITS TO FIRE? ").map_err(|e| {
-                let e: StarTrustError = e.into();
-                e
-            })?;
+            write!(sout, "PHASERS READY: ENERGY UNITS TO FIRE? ")?;
             let gb = getinp(15, InputMode::Mode2);
-            writeln!(sout).map_err(|e| {
-                let e: StarTrustError = e.into();
-                e
-            })?;
+            writeln!(sout)?;
             if let InputValue::InputString(ibuff) = gb {
                 x = ibuff.parse()?;
             } else {
@@ -561,11 +509,7 @@ impl TheGame {
             if x <= self.e {
                 break;
             }
-            writeln!(sout, "ONLY GOT {:03}", self.e) // The printf format was "%.3f"
-                .map_err(|e| {
-                    let e: StarTrustError = e.into();
-                    e
-                })?;
+            writeln!(sout, "ONLY GOT {:03}", self.e)?; // The printf format was "%.3f"
         }
         self.e -= x;
         let y3 = self.k as f64;
@@ -577,10 +521,7 @@ impl TheGame {
                 let n = self.k3[i];
                 self.showhit(sout, i, "KLINGON AT", n, h)?;
                 if self.k3[i] <= 0.0 {
-                    writeln!(sout, "**KLINGON DESTROYED**").map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
+                    writeln!(sout, "**KLINGON DESTROYED**")?;
                     self.k -= 1;
                     self.k9 -= 1;
                     let sector = Sector::new(self.k1[i], self.k2[i]);
@@ -601,14 +542,18 @@ impl TheGame {
         let x3 = y3.cos();
         y3 = -(y3.sin());
         let mut inquad = true;
-        let mut shortmove = (a == Command::WarpEngines); // Command #1
+        let mut shortmove = a == Command::WarpEngines; // Command #1
+        let mut y7 = 0;
+        let mut x7 = 0;
+        let mut y2 = self.game_defs.y2;
+        let mut x2 = self.game_defs.x2;
         for i in 0..(n as usize) {
             y1 += y3;
             x1 += x3;
-            let y2 = y1.floor();
-            let x2 = x1.floor();
-            let y7 = y2 as i32;
-            let x7 = x2 as i32;
+            y2 = y1.floor();
+            x2 = x1.floor();
+            y7 = y2 as i32;
+            x7 = x2 as i32;
             if (x7 < 0) || (x7 > 7) || (y7 < 0) || (y7 > 7) {
                 inquad = false;
                 shortmove = false;
@@ -617,16 +562,13 @@ impl TheGame {
             if a == Command::PhotonTorpedos
             // Command #5
             {
-                /* Show torpedo track */
-                write!(sout, "{} - {}  ", y7 + 1, x7 + 1).map_err(|e| {
-                    let e: StarTrustError = e.into();
-                    e
-                })?;
+                // Show torpedo track
+                write!(sout, "{} - {}  ", y7 + 1, x7 + 1)?;
             }
             if self.sect.sector_contents_at_coords(y7 as u8, x7 as u8) != SectorContents::Empty
             // Content type 1
             {
-                /* Object blocking move or hit by torpedo */
+                // Object blocking move or hit by torpedo
                 shortmove = false;
                 break;
             }
@@ -635,63 +577,54 @@ impl TheGame {
         if inquad {
             // Still in quadrant -- short move, block, or torpedo hit
             self.newquad = false;
-            writeln!(sout).map_err(|e| {
-                let e: StarTrustError = e.into();
-                e
-            })?;
+            writeln!(sout)?;
             if !shortmove {
                 if a == Command::WarpEngines
                 // Comman #1
                 {
-                    write!(sout, "BLOCKED BY ").map_err(|e| {
-                        let e: StarTrustError = e.into();
-                        e
-                    })?;
+                    write!(sout, "BLOCKED BY ")?;
                 }
-                match self.sect.sector_contents_at_coords(y7, x7) {
+                match self.sect.sector_contents_at_coords(y7 as u8, x7 as u8) {
                     SectorContents::Klingon => {
                         // case 3 :
-                        /* Klingon */
-                        // cprintf("KLINGON");
-                        if a == Command::PhotonTorpedos
-                        // Command #5
-                        {
-                            /* Torpedo */
-                            // for (i=0;i<8;i++){
-                            // if ((y7==k1[i])&&(x7==k2[i])) {k3[i]=0.0;}}
-                            // k--;
-                            // k9--;
-                        }
-                        // break;
-                    }
-                    SectorContents::Starbase => {
-                        // case 4 :
-                        /* Starbase */
-                        // cprintf("STARBASE");
-                        if a == Command::PhotonTorpedos
-                        // Command #5
-                        {
-                            /* Torpedo */
-                            b = 2;
-                        }
-                        // break;
-                    }
-                    SectorContents::Star => {
-                        // case 5 :
-                        /* Star */
-                        write!(sout, "STAR")
-                            .map_err(|e| {
-                                let e: StarTrustError = e.into();
-                                e
-                            })?
+                        // Klingon
+                        write!(sout, "KLINGON")?
                         ;
                         if a == Command::PhotonTorpedos
                         // Command #5
                         {
-                            /* Torpedo */
-                            s -= 1;
+                            // Torpedo
+                            for i in 0..8 {
+                                if (y7 == self.k1[i] as i32) && (x7 == self.k2[i] as i32) {
+                                    self.k3[i] = 0.0;
+                                }
+                            }
+                            self.k -= 1;
+                            self.k9 -= 1;
                         }
-                        // break;
+                    }
+                    SectorContents::Starbase => {
+                        // case 4 :
+                        // Starbase
+                        write!(sout, "STARBASE")?
+                        ;
+                        if a == Command::PhotonTorpedos
+                        // Command #5
+                        {
+                            // Torpedo
+                            self.b = 2;
+                        }
+                    }
+                    SectorContents::Star => {
+                        // case 5 :
+                        // Star
+                        write!(sout, "STAR")?;
+                        if a == Command::PhotonTorpedos
+                        // Command #5
+                        {
+                            // Torpedo
+                            self.s -= 1;
+                        }
                     }
                     _ => {
                         return Err(StarTrustError::GameStateError(format!(
@@ -701,50 +634,39 @@ impl TheGame {
                 }
                 if a == Command::WarpEngines
                 // Command #1
-                /* Enterprise move */
                 {
-                    //         cprintf(" AT SECTOR %i - %i\r\n",y7+1,x7+1);
-                    //         y2=floor(y1-y3);
-                    //         x2=floor(x1-x3);
-                    //         y7=y2;
-                    //         x7=x2;
+                    // Enterprise move
+                    writeln!(sout, " AT SECTOR {} - {}", y7 + 1, x7 + 1)?;
+                    y2 = (y1 - y3).floor();
+                    x2 = (x1 - x3).floor();
+                    y7 = y2 as i32;
+                    x7 = x2 as i32;
                 }
             }
             if a == Command::WarpEngines
             // Command #1
             {
-                        s1=y2;
-                        s2=x2;
-                        sect[s1][s2]=2;
+                self.s1 = y2 as u8;
+                self.s2 = x2 as u8;
+                let the_sector = self.current_sector();
+                self.sect[the_sector] = 2;
                 // Flag to show we stayed within quadrant
                 self.saved_command = 2.into();
             } else if a == Command::PhotonTorpedos
             // Command #5
             {
-                /* Torpedo */
-                        write!(sout, " DESTROYED!")
-                            .map_err(|e| {
-                                let e: StarTrustError = e.into();
-                                e
-                            })?
-                        ;
-                if b == 2 {
-                    b = 0;
-                                write!(sout, " . . . GOOD WORK!")
-                                    .map_err(|e| {
-                                        let e: StarTrustError = e.into();
-                                        e
-                                    })?
-                                ;
+                // Torpedo
+                write!(sout, " DESTROYED!")?;
+                if self.b == 2 {
+                    self.b = 0;
+                    write!(sout, " . . . GOOD WORK!")?;
                 }
-                        writeln!(sout)
-                            .map_err(|e| {
-                                let e: StarTrustError = e.into();
-                                e
-                            })?
-                        ;
-                //         sect[y7][x7]=1;
-                //         quad[q1][q2]=k*100+b*10+s;
+                writeln!(sout)?;
+                let old_sector = Sector::new(y7 as u8, x7 as u8);
+                self.sect[old_sector] = SectorContents::Empty.into(); // Clear old sector (set it to 1)
+                let current_quadrant = Quadrant::new(self.q1, self.q2);
+                self.quad[current_quadrant] =
+                    ((self.k as i32) * 100 + (self.b as i32) * 10 + self.s) as i16;
             }
         } else {
             // Out of quadrant -- move to new quadrant or torpedo miss
@@ -765,12 +687,7 @@ impl TheGame {
             // Command #5
             {
                 // Torpedo
-                writeln!(sout, "MISSED!")
-                    .map_err(|e| {
-                    let e: StarTrustError = e.into();
-                    e
-                })?
-                ;
+                writeln!(sout, "MISSED!")?;
             }
         }
         Ok(())
@@ -783,23 +700,24 @@ impl TheGame {
     pub fn play<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
         let mut gamecomp = GameState::InProgress;
         let mut moved: bool = false;
+        let mut a = self.saved_command;
 
         self.init(sout)?;
         self.newquad = true;
 
         while !gamecomp.is_done() {
+            if self.newquad {setupquad(self);}
+            self.newquad=false;
+            moved=false;
+            self.srscan(sout, a.into())?;
+            if self.e<=0.0{  /* Ran out of energy */
+                gamecomp=GameState::Lost;
+            }            else
+            {
+                loop   /* Command loop (-99 or ESC to quit) */
+                {
+                    write!(sout, "COMMAND? ")?;
             /*
-               if (newquad) setupquad();
-                    newquad=FALSE;
-                    moved=FALSE;
-                    srscan();
-                    if (e<=0.0)  /* Ran out of energy */
-                       gamecomp=-1;
-                    else
-                    {
-                       while (TRUE)  /* Command loop (-99 or ESC to quit) */
-                       {
-                          cprintf("COMMAND? ");
                           a=getinp(cmdbuff,7,2);
                           cprintf("\r\n");
                           if (a==1) a=99;
@@ -988,10 +906,10 @@ impl TheGame {
                           }
                           if (gamecomp) break;
                           if (moved) break;  /* Enterprise moved */
+            */
                        }  /* End command loop */
                     }
                  }  /* Game is over! */
-            */
             self.showstardate(sout)?;
             match gamecomp {
                 GameState::Won => {
@@ -1039,7 +957,6 @@ impl TheGame {
                     )))
                 }
             }
-        }
 
         Ok(())
     }
