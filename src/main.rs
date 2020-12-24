@@ -12,12 +12,15 @@
 
 extern crate startrust;
 
+#[allow(unused_imports)]
+use std::io::{stdin, stdout, BufRead, Write};
+
+use log::info;
+
 use startrust::{
     clrscr, showinst, title, yesno, StResult, StarTrustError, TheGame, TheGameDefs,
     TheGameDefsBuilder,
 };
-#[allow(unused_imports)]
-use std::io::{stdin, stdout, BufRead, Write};
 
 fn get_game_config() -> StResult<TheGameDefs> {
     let the_game_defs = TheGameDefsBuilder::default()
@@ -38,11 +41,14 @@ fn main() -> Result<(), StarTrustError> {
 
     let mut the_game = TheGame::new(&the_game_config);
 
-    loop {
+    loop {//idbg!("",) the_game
+        println!("About to print title");
+        info!("About to print title");
+
         clrscr(&mut sout)?;
         title(&mut sout)?;
 
-        let _game = the_game.play(&mut sout)?;
+        let _game = the_game.play(&mut sin.lock(), &mut sout)?;
 
         let _ = write!(sout, "\nTRY AGAIN? ")?;
         let ans = yesno(&mut sin.lock(), &mut sout)?;

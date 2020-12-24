@@ -8,6 +8,8 @@ pub enum StarTrustError {
     GameStateError(String),
     #[error("ParseFloatError: {0}")]
     ParseFloatError(std::num::ParseFloatError),
+    #[error("ParseIntError: {0}")]
+    ParseIntError(std::num::ParseIntError),
     #[error("GeneralError: {0}")]
     GeneralError(String),
 }
@@ -24,6 +26,11 @@ impl From<std::num::ParseFloatError> for StarTrustError {
     }
 }
 
+impl From<std::num::ParseIntError> for StarTrustError {
+    fn from(value: std::num::ParseIntError) -> Self {
+        StarTrustError::ParseIntError(value)
+    }
+}
 pub type StResult<T> = std::result::Result<T, StarTrustError>;
 
 // impl <T> From<std::io::Result<T>> for StResult<T> {

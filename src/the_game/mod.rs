@@ -2,17 +2,18 @@
 
 use std::io::{BufRead, Write};
 
+use log::error;
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::error::StarTrustError::GameStateError;
-use crate::interaction::{beep, getinp, InputMode, InputValue};
+use crate::interaction::{beep, delay, getcourse, getinp, getwarp, InputMode, InputValue};
 use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
-use crate::the_game::quadrant::{Quadrant, QuadrantMap, setupquad};
+use crate::the_game::quadrant::{setupquad, Quadrant, QuadrantMap};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
 use crate::util::{findslot, fnd, gt, lt, randinit, rnd, setrndxy};
-use crate::{StResult, StarTrustError};
+use crate::{yesno, StResult, StarTrustError};
 use std::f64::consts::FRAC_PI_4;
 
 mod commands;
@@ -76,7 +77,7 @@ pub struct TheGame {
 
 #[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(i32)]
-enum GameState {
+pub enum GameState {
     #[num_enum(default)]
     InProgress = 0,
     Won = 1,
@@ -153,7 +154,7 @@ impl TheGame {
         let the_game_defs = self.game_defs;
         let mut t9 = the_game_defs.t9;
         let t0 = the_game_defs.t0;
-        let mut k9 = self.k9;
+        let mut k9 = self.k9 as i32;
         let x1 = self.game_defs.x1;
         let x2 = self.game_defs.x2;
         let y1 = self.game_defs.y1;
@@ -173,7 +174,7 @@ impl TheGame {
                         + lt(n, 0.08) as i16
                         + lt(n, 0.03) as i16
                         + lt(n, 0.01) as i16;
-                    k9 -= k as u16;
+                    k9 -= k as i32;//u16
                 }
                 self.b = gt(rnd(), self.game_defs.aa) as u32;
                 b9 -= self.b as u16;
@@ -184,8 +185,8 @@ impl TheGame {
             }
         }
 
-        if k9 > (t9 - t0) {
-            t9 = t0 + k9;
+        if k9 > (t9 - t0) as i32 {
+            t9 = t0 + k9 as u16;
         }
 
         if b9 <= 0 {
@@ -196,8 +197,8 @@ impl TheGame {
         }
 
         self.k = k;
-        self.k9 = k9;
-        self.k0 = k9;
+        self.k9 = k9 as u16;
+        self.k0 = k9 as u16;
         self.b9 = b9;
         self.years = (t9 - t0) as u8;
         writeln!(
@@ -301,8 +302,7 @@ impl TheGame {
 
     /// Show estimated time for repair
     fn showestreptime<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
-        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i])
-            .map_err(|e| {
+        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i]).map_err(|e| {
             let e = e.into();
             e
         })
@@ -311,10 +311,6 @@ impl TheGame {
     /// Show damaged item
     fn showdamage<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
         write!(sout, "{} DAMAGED.  ", DS[i])?;
-        //     .map_err(|e| {
-        //     let e: StarTrustError = e.into();
-        //     e
-        // })
         beep();
         self.showestreptime(sout, i)
     } /* End showdamage */
@@ -340,10 +336,6 @@ impl TheGame {
         }
         if self.is_docked() {
             writeln!(sout, "STARBASE PROTECTS ENTERPRISE.")?;
-            //     .map_err(|e| {
-            //     let e: StarTrustError = e.into();
-            //     e
-            // })
             return Ok(());
         }
         for i in 0..8 {
@@ -370,40 +362,20 @@ impl TheGame {
         let q1: i32 = self.q1 as i32;
         let q2: i32 = self.q2 as i32;
         writeln!(sout, "{} FOR QUADRANT {} - {}", DS[i], q1 + 1, q2 + 1)?;
-        //     .map_err(|e| {
-        //     let e: StarTrustError = e.into();
-        //     e
-        // })
         for i in (q1 - 1)..=(q1 + 1) {
             for j in (q2 - 1)..=(q2 + 1) {
                 write!(sout, "   ")?;
-                //     .map_err(|e| {
-                //     let e: StarTrustError = e.into();
-                //     e
-                // })
                 if (i < 0) || (i > 7) || (j < 0) || (j > 7) {
                     write!(sout, "***")?;
-                    //     .map_err(|e| {
-                    //     let e: StarTrustError = e.into();
-                    //     e
-                    // })
                 } else {
                     let quadrant = Quadrant::new(i as u8, j as u8);
                     let value = self.quad[quadrant].abs();
                     self.quad[quadrant] = value;
                     let es = self.qstr(i as u8, j as u8);
                     write!(sout, "{}", es)?;
-                    //     .map_err(|e| {
-                    //     let e: StarTrustError = e.into();
-                    //     e
-                    // })
                 }
             }
             writeln!(sout)?;
-            //     .map_err(|e| {
-            //     let e: StarTrustError = e.into();
-            //     e
-            // })
         }
         Ok(())
     } /* End lrscan */
@@ -488,17 +460,17 @@ impl TheGame {
     } /* End srscan */
 
     /// Fire phasers
-    fn phasers<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+    fn phasers<R: BufRead, W: Write>(&mut self, sin: &mut R, sout: &mut W) -> StResult<f64> {
         let mut x = 0.0;
         let i = 3;
         if self.d[i] > 0 {
             // Phasers inoperative
             self.showdamage(sout, i)?;
-            return Ok(());
+            return Ok(x);
         }
         loop {
             write!(sout, "PHASERS READY: ENERGY UNITS TO FIRE? ")?;
-            let gb = getinp(15, InputMode::Mode2);
+            let gb = getinp(sin, sout, 15, InputMode::Mode2)?;
             writeln!(sout)?;
             if let InputValue::InputString(ibuff) = gb {
                 x = ibuff.parse()?;
@@ -531,7 +503,7 @@ impl TheGame {
                 }
             }
         }
-        Ok(())
+        Ok(x)
     } /* End phasers */
 
     /// Do the path for warp or torpedo
@@ -547,7 +519,7 @@ impl TheGame {
         let mut x7 = 0;
         let mut y2 = self.game_defs.y2;
         let mut x2 = self.game_defs.x2;
-        for i in 0..(n as usize) {
+        for _ in 0..(n as usize) {
             y1 += y3;
             x1 += x3;
             y2 = y1.floor();
@@ -588,8 +560,7 @@ impl TheGame {
                     SectorContents::Klingon => {
                         // case 3 :
                         // Klingon
-                        write!(sout, "KLINGON")?
-                        ;
+                        write!(sout, "KLINGON")?;
                         if a == Command::PhotonTorpedos
                         // Command #5
                         {
@@ -606,8 +577,7 @@ impl TheGame {
                     SectorContents::Starbase => {
                         // case 4 :
                         // Starbase
-                        write!(sout, "STARBASE")?
-                        ;
+                        write!(sout, "STARBASE")?;
                         if a == Command::PhotonTorpedos
                         // Command #5
                         {
@@ -693,271 +663,346 @@ impl TheGame {
         Ok(())
     } /* End dopath */
 
+    pub fn do_warp<R: BufRead, W: Write>(
+        &mut self,
+        sin: &mut R,
+        sout: &mut W,
+        a: &mut Command,
+        gamecomp: &mut GameState,
+        moved: &mut bool,
+    ) -> StResult<()> {
+        let mut c = self.c;
+        loop {
+            loop {
+                c = getcourse(sin, sout, self)?;
+                self.c = c;
+                if c < 9.0 {
+                    break;
+                }
+                beep();
+            }
+            if c >= 1.0 {
+                loop {
+                    let w = getwarp(sin, sout)?;
+                    if (w <= 0.0) || (w > 12.0) {
+                        c = 10.0;
+                        break;
+                    }
+                    if (self.d[0] > 0) && (w > 0.2) {
+                        let i = 0;
+                        write!(sout, "{} DAMAGED; MAX IS 0.2; ", DS[i])?;
+                        self.showestreptime(sout, i)?;
+                        beep();
+                    } else {
+                        break;
+                    }
+                    beep();
+                }
+            }
+            if c < 9.0 {
+                break;
+            }
+        }
+        if c < 1.0 {
+            // Abort move
+            return Ok(());
+        }
+        self.checkforhits(sout)?;
+        if self.e <= 0.0 {
+            /* Ran out of energy */
+            *gamecomp = (-1).into();
+            return Ok(());
+        }
+
+        if rnd() <= 0.25 {
+            let x = (rnd() * 6.0).floor() as usize;
+            if rnd() <= 0.5 {
+                beep();
+                self.d[x] += (6.0 - rnd() * 5.0).floor() as i32;
+                writeln!(sout, "**SPACE STORM, {} DAMAGED**", DS[x])?;
+                let i = x;
+                self.showestreptime(sout, i)?;
+                self.d[x] += 1;
+                delay(100);
+                beep();
+            } else {
+                let mut j: i32 = -1;
+                for i in x..6 {
+                    if self.d[i] > 0 {
+                        j = i as i32;
+                        break;
+                    }
+                }
+                if j < 0 {
+                    for i in 0..x {
+                        if self.d[i] > 0 {
+                            j = i as i32;
+                            break;
+                        }
+                    }
+                }
+                if j >= 0 {
+                    self.d[j as usize] = 1;
+                    writeln!(sout, "**SPOCK USED A NEW REPAIR TECHNIQUE**")?;
+                }
+            }
+        }
+        for i in 0..6 {
+            if self.d[i] != 0 {
+                self.d[i] -= 1;
+                if self.d[i] <= 0 {
+                    self.d[i] = 0;
+                    writeln!(sout, "{} ARE FIXED!", DS[i])?;
+                    beep();
+                }
+            }
+        }
+        let n = (self.w * 8.0).floor();
+        self.e = self.e - n - n + 0.5;
+        self.t += 1u16;
+        let current_sector = self.current_sector();
+        self.sect[current_sector] = 1;
+        if self.t > self.game_defs.t9 {
+            /* Ran out of time! */
+            *gamecomp = (-1).into();
+            return Ok(());
+        }
+        self.dopath(sout, *a, n)?;
+        *a = self.saved_command;
+        let i = n;
+        if self.e <= 0.0 {
+            // Ran out of energy
+            *gamecomp = (-1).into();
+            return Ok(());
+        }
+        *moved = true;
+        Ok(())
+    }
+
+    fn do_torpedoes<R: BufRead, W: Write>(
+        &mut self,
+        sin: &mut R,
+        sout: &mut W,
+        a: &mut Command,
+        gamecomp: &mut GameState,
+    ) -> StResult<()> {
+        if self.d[4] > 0 {
+            // Torpedoes damaged
+            write!(sout, "SPACE CRUD BLOCKING TUBES.  ")?;
+            let i = 4;
+            self.showestreptime(sout, i)?;
+            beep();
+            return Ok(());
+        }
+        let n: f64 = 15.0;
+        if self.p < 1 {
+            writeln!(sout, "NO TORPEDOES LEFT!")?;
+            return Ok(());
+        }
+        self.c = 10.0;
+        while self.c >= 9.0 {
+            write!(sout, "TORPEDO ")?;
+
+            self.c = getcourse(sin, sout, self)?;
+        }
+        if self.c < 1.0 {
+            // Abort firing of torpedo
+            return Ok(());
+        }
+        self.p -= 1;
+        write!(sout, "TRACK: ")?;
+        self.dopath(sout, *a, n)?;
+        *a = self.saved_command;
+        let i = n;
+        if self.e <= 0.0 {
+            /* Ran out of energy */
+            *gamecomp = (-1).into();
+        }
+        self.checkforhits(sout)?;
+        if self.e <= 0.0 {
+            /* Ran out of energy */
+            *gamecomp = (-1).into();
+        }
+        if self.k9 < 1 {
+            /* All Klingons destroyed! */
+            *gamecomp = 1.into();
+        }
+        if !gamecomp.is_done() {
+            self.checkcond();
+        }
+        Ok(())
+    }
+
     pub fn s9(&self) -> f64 {
         self.game_defs.s9
     }
 
-    pub fn play<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+    pub fn play<R: BufRead, W: Write>(&mut self, sin: &mut R, sout: &mut W) -> StResult<()> {
         let mut gamecomp = GameState::InProgress;
         let mut moved: bool = false;
         let mut a = self.saved_command;
 
+        dbg!("Init", gamecomp, moved, a);
         self.init(sout)?;
         self.newquad = true;
+        dbg!("Done initing", gamecomp, moved, a, self.newquad);
 
         while !gamecomp.is_done() {
-            if self.newquad {setupquad(self);}
-            self.newquad=false;
-            moved=false;
+            if self.newquad {
+                setupquad(self);
+                a = self.saved_command;
+            }
+            self.newquad = false;
+            moved = false;
             self.srscan(sout, a.into())?;
-            if self.e<=0.0{  /* Ran out of energy */
-                gamecomp=GameState::Lost;
-            }            else
-            {
-                loop   /* Command loop (-99 or ESC to quit) */
+            if self.e <= 0.0 {
+                /* Ran out of energy */
+                gamecomp = GameState::Lost;
+            } else {
+                loop
+                /* Command loop (-99 or ESC to quit) */
                 {
                     write!(sout, "COMMAND? ")?;
-            /*
-                          a=getinp(cmdbuff,7,2);
-                          cprintf("\r\n");
-                          if (a==1) a=99;
-                          if (a==-1) a=-99;
-                          if (a==0) a=atoi(cmdbuff);
-                          if (a==-99)
-                          {
-                             cprintf("\r\nARE YOU SURE YOU WANT TO QUIT? ");
-                             yesno();
-                             if (ans=='Y')
-                             {
-                                gamecomp=-99;
-                                break;  /* Break out of command loop */
-                             }
-                             else
-                                continue;  /* Back to top of command loop */
-                          }
-                          if ((a<1)||(a>6))
-                          {
-                             for (i=0;i<6;i++)
-                                cprintf("  %i = %s\r\n",i+1,ds[i]);
-                             cprintf("  -99 OR ESC TO QUIT\r\n\n");
-                             continue;  /* Back to top of command loop */
-                          }
-                          switch (a)
-                          {
-                             case 1 :  /* Warp engines */
-                                while (TRUE)
-                                {
-                                   while (TRUE)
-                                   {
-                                      getcourse();
-                                      if (c<9.0) break;
-                                      beep();
-                                   }
-                                   if (c>=1.0)
-                                      while (TRUE)
-                                      {
-                                         getwarp();
-                                         if ((w<=0.0)||(w>12.0))
-                                         {
-                                            c=10.0;
-                                            break;
-                                         }
-                                         if ((d[0]>0)&&(w>0.2))
-                                         {
-                                            i=0;
-                                            cprintf("%s DAMAGED; MAX IS 0.2; ",ds[i]);
-                                            showestreptime();
-                                            beep();
-                                         }
-                                         else
-                                            break;
-                                         beep();
-                                      }
-                                   if (c<9.0) break;
-                                }
-                                if (c<1.0) break;  /* Abort move */
-                                checkforhits();
-                                if (e<=0.0)  /* Ran out of energy */
-                                {
-                                   gamecomp=-1;
-                                   break;
-                                }
-                                if (rnd()<=0.25)
-                                {
-                                   x=floor(rnd()*6.0);
-                                   if (rnd()<=0.5)
-                                   {
-                                      beep();
-                                      d[x]+=floor(6.0-rnd()*5.0);
-                                      cprintf("**SPACE STORM, %s DAMAGED**\r\n",ds[x]);
-                                      i=x;
-                                      showestreptime();
-                                      d[x]++;
-                                      delay(100);
-                                      beep();
-                                   }
-                                   else
-                                   {
-                                      j=-1;
-                                      for (i=x;i<6;i++)
-                                         if (d[i]>0)
-                                         {
-                                            j=i;
-                                            break;
-                                         }
-                                      if (j<0)
-                                         for (i=0;i<x;i++)
-                                            if (d[i]>0)
-                                            {
-                                               j=i;
-                                               break;
-                                            }
-                                      if (j>=0)
-                                      {
-                                         d[j]=1;
-                                         cprintf("**SPOCK USED A NEW REPAIR TECHNIQUE**\r\n");
-                                      }
-                                   }
-                                }
-                                for (i=0;i<6;i++)
-                                   if (d[i]!=0)
-                                   {
-                                      d[i]--;
-                                      if (d[i]<=0)
-                                      {
-                                         d[i]=0;
-                                         cprintf("%s ARE FIXED!\r\n",ds[i]);
-                                         beep();
-                                      }
-                                   }
-                                n=floor(w*8.0);
-                                e=e-n-n+0.5;
-                                t++;
-                                sect[s1][s2]=1;
-                                if (t>t9)  /* Ran out of time! */
-                                {
-                                   gamecomp=-1;
-                                   break;
-                                }
-                                dopath();
-                                if (e<=0.0)  /* Ran out of energy */
-                                {
-                                   gamecomp=-1;
-                                   break;
-                                }
-                                moved=TRUE;
-                                break;
-
-                             case 2 :  /* Short-range scan */
-                                srscan();
-                                break;
-
-                             case 3 :  /* Long-range scan */
-                                lrscan();
-                                break;
-
-                             case 4 :  /* Phasers */
-                                phasers();
-                                if (x>0.0)
-                                {
-                                   if (e<=0.0) gamecomp=-1;  /* Ran out of energy */
-                                   checkforhits();
-                                   if (e<=0.0) gamecomp=-1;  /* Ran out of energy */
-                                   if (k9<1) gamecomp=1;  /* All Klingons destroyed! */
-                                   if (!gamecomp) checkcond();
-                                }
-                                break;
-
-                             case 5 :  /* Photon torpedos */
-                                if (d[4]>0)  /* Torpedoes damaged */
-                                {
-                                   cprintf("SPACE CRUD BLOCKING TUBES.  ");
-                                   i=4;
-                                   showestreptime();
-                                   beep();
-                                   break;
-                                }
-                                n=15;
-                                if (p<1)
-                                {
-                                   cprintf("NO TORPEDOES LEFT!\r\n");
-                                   break;
-                                }
-                                c=10.0;
-                                while (c>=9.0)
-                                {
-                                   cprintf("TORPEDO ");
-                                   getcourse();
-                                }
-                                if (c<1.0) break;  /* Abort firing of torpedo */
-                                p--;
-                                cprintf("TRACK: ");
-                                dopath();
-                                if (e<=0.0) gamecomp=-1;  /* Ran out of energy */
-                                checkforhits();
-                                if (e<=0.0) gamecomp=-1;  /* Ran out of energy */
-                                if (k9<1) gamecomp=1;  /* All Klingons destroyed! */
-                                if (!gamecomp) checkcond();
-                                break;
-
-                             case 6 :  /* Galactic records */
-                                galrecs();
-                                break;
-                          }
-                          if (gamecomp) break;
-                          if (moved) break;  /* Enterprise moved */
-            */
-                       }  /* End command loop */
+                    let ebuff = getinp(sin, sout, 7, 2.into())?;
+                    writeln!(sout)?;
+                    let int_a;
+                    match ebuff {
+                        InputValue::Blank => int_a = 99,
+                        InputValue::Esc => int_a = -99,
+                        InputValue::InputString(cmdbuff) => int_a = cmdbuff.parse::<i32>()?,
                     }
-                 }  /* Game is over! */
-            self.showstardate(sout)?;
-            match gamecomp {
-                GameState::Won => {
-                    let t = self.t;
-                    let t0 = self.game_defs.t0;
-                    let drate: f64 = (t - t0) as f64;
-                    let rating: i32 = ((self.k0 as f64 / drate) * 1000.0) as i32;
-                    writeln!(sout, "THE FEDERATION HAS BEEN SAVED!")?;
-                    writeln!(sout, "YOU ARE PROMOTED TO ADMIRAL.")?;
-                    writeln!(
-                        sout,
-                        "{} KLINGONS IN {} YEARS.  RATING = {}\n",
-                        self.k0,
-                        t - t0,
-                        rating,
-                    )?;
-                    // break;
-                }
-                GameState::Lost => {
-                    if self.t > self.game_defs.t9 {
-                        writeln!(sout, "YOU RAN OUT OF TIME!")?;
-                    } else if self.e <= 0.0 {
-                        writeln!(sout, "YOU RAN OUT OF ENERGY!")?;
+                    if int_a == -99 {
+                        write!(sout, "\nARE YOU SURE YOU WANT TO QUIT? ")?;
+                        let ans = yesno(sin, sout)?;
+                        if ans == 'Y' {
+                            gamecomp = (-99).into();
+                            break; /* Break out of command loop */
+                        } else {
+                            continue;
+                        } /* Back to top of command loop */
+                    } else if (int_a < 1) || (int_a > 6) {
+                        for i in 0..6 {
+                            writeln!(sout, "  {} = {}", i + 1, DS[i])?;
+                        }
+                        writeln!(sout, "  -99 OR ESC TO QUIT\n")?;
+                        // Back to top of command loop
+                        continue;
                     } else {
-                        return Err(GameStateError(String::from(
-                            "GameState::Lost with no discernible reason",
-                        )));
+                        a = int_a.into()
                     }
-                    writeln!(sout, "THANKS TO YOUR BUNGLING, THE FEDERATION WILL BE")?;
-                    writeln!(
-                        sout,
-                        "CONQUERED BY THE REMAINING {} KLINGON CRUISERS!",
-                        self.k9
-                    )?;
-                    writeln!(sout, "YOU ARE DEMOTED TO CABIN BOY!")?;
-                    // break;
-                }
-                GameState::Quit => {
-                    writeln!(sout, "OKAY, QUITTER -- NO KUDOS FOR YOU.")?;
-                    // break;
-                }
-                GameState::InProgress => {
-                    return Err(StarTrustError::GameStateError(String::from(
-                        "`gamecomp` is `InProgress`, but in game complete",
-                    )))
-                }
-            }
+                    match a {
+                        Command::WarpEngines => {
+                            //case 1 :
+                            // Warp engines
+                            self.do_warp(sin, sout, &mut a, &mut gamecomp, &mut moved)?;
+                        }
+                        Command::ShortRangeScan => {
+                            //case 2 :
+                            // Short-range scan
+                            self.srscan(sout, a.into())?;
+                        }
+                        Command::LongRangeScan => {
+                            //case 3 :
+                            /* Long-range scan */
+                            self.lrscan(sout)?;
+                        }
+                        Command::Phasers => {
+                            //case 4 :
+                            /* Phasers */
+                            let x = self.phasers(sin, sout)?;
+                            if x > 0.0 {
+                                if self.e <= 0.0 {
+                                    /* Ran out of energy */
+                                    gamecomp = (-1).into();
+                                }
+                                self.checkforhits(sout)?;
+                                if self.e <= 0.0 {
+                                    /* Ran out of energy */
+                                    gamecomp = (-1).into();
+                                }
+                                if self.k9 < 1 {
+                                    /* All Klingons destroyed! */
+                                    gamecomp = 1.into();
+                                }
+                                if !gamecomp.is_done() {
+                                    self.checkcond()
+                                };
+                            }
+                        }
+                        Command::PhotonTorpedos => {
+                            //case 5 :
+                            // Photon torpedoes
+                            self.do_torpedoes(sin, sout, &mut a, &mut gamecomp)?;
+                        }
+                        Command::Galacticrecords => {
+                            //case 6 :
+                            /* Galactic records */
+                            self.galrecs(sout)?;
+                        }
+                        Command::Undefined => {
+                            error!("undefined command in command loop.")
+                        }
+                        Command::Quit => {
+                            gamecomp = GameState::Quit;
+                            break;
+                        }
+                    }
 
+                    if gamecomp.is_done() {
+                        break;
+                    }
+                    if moved {
+                        // Enterprise moved
+                        break;
+                    }
+                } /* End command loop */
+            }
+        } /* Game is over! */
+
+        self.showstardate(sout)?;
+        match gamecomp {
+            GameState::Won => {
+                let t = self.t;
+                let t0 = self.game_defs.t0;
+                let drate: f64 = (t - t0) as f64;
+                let rating: i32 = ((self.k0 as f64 / drate) * 1000.0) as i32;
+                writeln!(sout, "THE FEDERATION HAS BEEN SAVED!")?;
+                writeln!(sout, "YOU ARE PROMOTED TO ADMIRAL.")?;
+                writeln!(
+                    sout,
+                    "{} KLINGONS IN {} YEARS.  RATING = {}\n",
+                    self.k0,
+                    t - t0,
+                    rating,
+                )?;
+            }
+            GameState::Lost => {
+                if self.t > self.game_defs.t9 {
+                    writeln!(sout, "YOU RAN OUT OF TIME!")?;
+                } else if self.e <= 0.0 {
+                    writeln!(sout, "YOU RAN OUT OF ENERGY!")?;
+                } else {
+                    return Err(GameStateError(String::from(
+                        "GameState::Lost with no discernible reason",
+                    )));
+                }
+                writeln!(sout, "THANKS TO YOUR BUNGLING, THE FEDERATION WILL BE")?;
+                writeln!(
+                    sout,
+                    "CONQUERED BY THE REMAINING {} KLINGON CRUISERS!",
+                    self.k9
+                )?;
+                writeln!(sout, "YOU ARE DEMOTED TO CABIN BOY!")?;
+            }
+            GameState::Quit => {
+                writeln!(sout, "OKAY, QUITTER -- NO KUDOS FOR YOU.")?;
+            }
+            GameState::InProgress => {
+                return Err(StarTrustError::GameStateError(String::from(
+                    "`gamecomp` is `InProgress`, but in game complete",
+                )))
+            }
+        }
         Ok(())
     }
 }

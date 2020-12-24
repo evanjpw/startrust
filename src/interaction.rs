@@ -1,5 +1,5 @@
 use crate::error::StarTrustError;
-use crate::StResult;
+use crate::{StResult, TheGame};
 use beep::beep as sound;
 use dim::{dimensions::Frequency, si::Hertz};
 use log::debug;
@@ -8,6 +8,21 @@ use num_traits::{Num, ToPrimitive};
 use std::io::{BufRead, Read, Write};
 use std::thread;
 use std::time::Duration;
+
+const ESCKEY: u8 = 27; /* 'ESC' key code */
+const ENTERKEY: u8 = 13; /* 'Enter' key code */
+const MINUS_ENTERKEY: u8 = ((-(ENTERKEY as i32)) & 0xFF) as u8;
+const NULLC: u8 = '\0' as u8; /* Null character */
+const F1KEY: u8 = (-59 & 0xFF) as u8; /* 'F1' key code (following NULL) */
+const BKSPCKEY: u8 = 8; /* 'Backspace' key code */
+const SPC: u8 = 32; /* Space character */
+const ASCHI: u8 = 126; /* Maximum input character to allow */
+const CTLBKSPCKEY: u8 = 127; /* 'Ctrl-backspace' key code */
+
+/// Wait for the provided number of milliseconds
+pub fn delay(ms: usize) {
+    thread::sleep(Duration::from_millis(ms as u64));
+}
 
 fn getbyte<R: Read>(sin: &mut R) -> StResult<Option<u8>> {
     sin.bytes().next().transpose().map_err(|e| {
@@ -50,8 +65,14 @@ where
 /// Argument(s):  none
 /// Description:  Clears the keyboard buffer.
 /// Includes:     conio.h
-fn clearkeyboard<R: BufRead>(_stdin: R) {
-    // while (kbhit()) getch();
+fn clearkeyboard<R: BufRead>(_stdin: &mut R) -> StResult<()> {
+    // was: `while (kbhit())`
+    loop {
+        let c = getch(_stdin)?;
+        if c.is_none() {
+            return Ok(());
+        }
+    }
 } // End clearkeyboard
 
 // ********************************************************************
@@ -60,19 +81,26 @@ fn clearkeyboard<R: BufRead>(_stdin: R) {
 /// Description:  Gets a line of text from the stream and strips the
 /// non-printing characters at the end of the line
 /// Includes:     stdio.h
-pub fn fgetline<R: BufRead>(_stream: R) -> Result<String, StarTrustError> //char *buff,int blen,FILE *stream
-{
-    // int j;
-    //
-    // for (j=0;j<blen;j++) buff[i]=0;
-    // fgets(buff,blen,stream);
-    // for (j=strlen(buff)-1;j>=0;j--)
-    // {
-    // if (buff[j]>31) break;
-    // buff[j]=0;
-    // }_td
-    todo!()
+pub fn fgetline<R: BufRead>(_stream: &mut R) -> Result<String, StarTrustError> {
+    let mut buff = String::new();
+    let j = _stream.read_line(&mut buff)?;
+    Ok(if j > 0 {
+        let i = buff.trim_end();
+        i.to_string()
+    } else {
+        buff
+    })
 } // End fgetline
+  // int
+  //
+  // for 0;j<blen;j++ []0;
+  // fgets(,blen,stream);
+  // for (j=strlen()-1;j>=0;j--)
+  // {
+  // if (buff[j]>31) break;
+  // [j]=0;
+  // }_tdtodo!()
+  //char *buff,int blen,FILE *stream
 
 /// Get Y or N from user and place result in ans
 pub fn yesno<R: BufRead, W: Write>(sin: &mut R, stdout: &mut W) -> Result<char, StarTrustError> {
@@ -89,13 +117,13 @@ pub fn yesno<R: BufRead, W: Write>(sin: &mut R, stdout: &mut W) -> Result<char, 
 } /* End yesno */
 
 /// Get keypress to continue
-pub fn keytocont() {
-    // cprintf("\r\nPRESS A KEY TO CONTINUE ... ");
-    // clearkeyboard();
-    // getch();
-    // clearkeyboard();
-    // cprintf("\r\n");
-    todo!()
+pub fn keytocont<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
+    write!(sout, "\nPRESS A KEY TO CONTINUE ... ")?;
+    clearkeyboard(sin)?;
+    let _ = getch(sin)?;
+    clearkeyboard(sin)?;
+    writeln!(sout)?;
+    Ok(())
 }
 
 // ********************************************************************
@@ -116,62 +144,58 @@ pub fn buzz() {
     speaker(Hertz::new(50.0f64), Duration::from_millis(200));
 } // End buzz
 
-const ESCKEY: u8 = 27; /* 'ESC' key code */
+// intcc=;cc>;cc--%c%c+  cc;int*()cprintf/, char *buff
+// buff[*bl]=NULLC;
+// mut case:break;default :;{}()//0pio;swi()swi()case:break;l>0%c%cl--;
+//[]NULLCdefault :cprintf()int charint
+// l++// buff[l]=NULLC//break;[l]=cprintf%ccase :break;case : break;case:break;
 /*
+int i,           return ok;
 
-#define NULLC       '\0'  /* Null character */
-#define F1KEY        -59  /* 'F1' key code (following NULL) */
-#define BKSPCKEY       8  /* 'Backspace' key code */
-#define ENTERKEY      13  /* 'Enter' key code */
-        #define
-#define SPC           32  /* Space character */
-#define ASCHI        126  /* Maximum input character to allow */
-#define CTLBKSPCKEY  127  /* 'Ctrl-backspace' key code */
-
-char *[6]
-   {};
-
-
-int charokay(char cc,int mode)  /* Check for valid input characters */
-{
-int i,ok;
-
-   i=mode;
-   if ((i<0)||(i>3)) i=1;
-   switch(i)
+   i=;
+   if ((i<03)) i=1;
+   swi(i)
    {
-      case 0 :
-         ok=((cc>=' ')&&(cc<=ASCHI));
-         break;
-      case 1 :
-         ok=(((cc>='A')&&(cc<='Z'))||(cc=='*')||(cc==' '));
-         break;
+      case 0 :                 break;
+      case 1 :                 break;
       case 2 :
-         ok=(((cc>='0')&&(cc<='9'))||(cc=='.')||(cc==',')||(cc=='-'));
          break;
       case 3 :
-         ok=(((cc>='A')&&(cc<='Z'))||((cc>='0')&&(cc<='9'))||(cc==' '));
-         break;
-   }
-   return ok;
-}  /* End charokay */
-
-
-void ctlbkspc(int *bl,char *buff)  /* Do a Ctrl-Backspace */
-{
-int
-   cc;
-
-   if (*bl>0)
-   {
-      for (cc=*bl;cc>0;cc--)
-         cprintf("%c %c",BKSPCKEY,BKSPCKEY);
-      *bl=0;
-      buff[*bl]=NULLC;
-   }
-}  /* End ctlbkspc */
-
+         break;ok=ok=ok=    okok=;;;;    ok: bool;
  */
+
+/// Check for valid input characters
+fn charokay(cc: u8, mode: InputMode) -> bool {
+    match mode {
+        InputMode::Mode0 => (cc >= (' ' as u8)) && (cc <= ASCHI),
+        InputMode::Mode1 => {
+            (cc >= ('A' as u8)) && (cc <= ('Z' as u8)) || (cc == ('*' as u8)) || (cc == (' ' as u8))
+        }
+        InputMode::Mode2 => {
+            ((cc >= ('0' as u8)) && (cc <= ('9' as u8)))
+                || (cc == ('.' as u8))
+                || (cc == (',' as u8))
+                || (cc == ('-' as u8))
+        }
+        InputMode::Mode3 => {
+            ((cc >= ('A' as u8)) && (cc <= ('Z' as u8)))
+                || ((cc >= ('0' as u8)) && (cc <= ('9' as u8)))
+                || (cc == (' ' as u8))
+        }
+        InputMode::InvalidMode => false,
+    }
+} /* End charokay */
+
+/// Do a Ctrl-Backspace
+fn ctlbkspc<W: Write>(sout: &mut W, bl: &mut i32) -> StResult<()> {
+    if *bl > 0 {
+        for _ in 0..(*bl) {
+            write!(sout, "{} {}", BKSPCKEY as char, BKSPCKEY as char)?;
+        }
+        *bl = 0;
+    }
+    Ok(())
+} /* End ctlbkspc */
 
 #[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(i32)]
@@ -205,7 +229,7 @@ impl InputValue {
     }
 }
 
-/*  ********************************************************************
+/**  ********************************************************************
     Function:     getinp
     Argument(s):  input buffer, maximum input length, mode
     Description:  Gets input from console, echoing to the current screen
@@ -231,80 +255,105 @@ impl InputValue {
     Returns:      0 for successful read; 1 for CR only; -1 for ESC
     Includes:     conio.h
 */
-pub fn getinp(_length: usize, mode: InputMode) -> InputValue {
+pub fn getinp<R: BufRead, W: Write>(
+    sin: &mut R,
+    sout: &mut W,
+    _length: usize,
+    mode: InputMode,
+) -> StResult<InputValue> {
     let md: i32 = mode.into();
-    // let mut l=0;
     let mut cc = 0;
     let mut buff: Vec<u8> = Vec::new();
-    /*
-    while ((cc!=ENTERKEY)&&(cc!=ESCKEY)&&(cc!=-ENTERKEY))
-    {
-       cc=getch();
-       if (cc==NULLC)   /*  Function key hit.  */
-       {
-          cc=-getch();
-          if (md==2)
-             switch (cc)
-             {
-                case F1KEY:  /*  F1;  Help - same as blank CR  */
-                   if (l>0)
-                      ctlbkspc(&l,buff);
-                   cc=ENTERKEY;
-                   break;
-                default : buzz();
-             }
-          else
-             buzz();
-       }
-       else if ((cc<BKSPCKEY)||((cc>BKSPCKEY)&&(cc<ENTERKEY))||
-          ((cc>ENTERKEY)&&(cc<ESCKEY))||((cc>ESCKEY)&&(cc<SPC))||(cc>ASCHI))
-          beep();
-       else
-          switch(cc)
-          {
-          case BKSPCKEY :  /*  Perform destructive backspace.  */
-             if (l>0)
-             {
-                cprintf("%c %c",cc,cc);
-                l--;
-                buff[l]=NULLC;
-             }
-             else
-                buzz();
-             break;
-          case ESCKEY :   /*  Perform escape (abort input).  */
-             if(l>0)
-                ctlbkspc(&l,buff);
-             break;
-          case CTLBKSPCKEY :   /*  Perform Ctrl-backspace.  */
-             if (l>0)
-                ctlbkspc(&l,buff);
-             else
-                buzz();
-             break;
-          case ENTERKEY :  /*  Carriage return -- don't do anything  */
-             break;
-          default :  /*  Possibly valid ASCII character  */
-             if (l<length)
-             {
-                cc=toupper(cc);
-                if (charokay(cc,md))
-                {
-                   buff[l]=cc;
-                   cprintf("%c",cc);
-                   l++;
-                   buff[l]=NULLC;
+    while (cc != ENTERKEY) && (cc != ESCKEY) && (cc != MINUS_ENTERKEY) {
+        if let Some(the_char) = getch(sin)? {
+            cc = the_char as u8;
+        } else {
+            continue;
+        }
+        if cc == NULLC
+        /*  Function key hit.  */
+        {
+            if let Some(n_cc) = getch(sin)? {
+                let n_cc = (-(n_cc as i32) & 0xFF) as u8;
+                let mut l = buff.len() as i32;
+                if md == 2.into() {
+                    match n_cc {
+                        F1KEY => {
+                            /*  F1;  Help - same as blank CR  */
+                            if l > 0 {
+                                ctlbkspc(sout, &mut l)?;
+                                buff.clear()
+                            }
+                            cc = ENTERKEY;
+                        }
+                        _ => buzz(),
+                    }
+                } else {
+                    buzz();
                 }
-                else
-                   beep();
-             }
-             else
-                beep();
-             break;
-          }
+            } else {
+                buzz();
+            }
+        } else if (cc < BKSPCKEY)
+            || ((cc > BKSPCKEY) && (cc < ENTERKEY))
+            || ((cc > ENTERKEY) && (cc < ESCKEY))
+            || ((cc > ESCKEY) && (cc < SPC))
+            || (cc > ASCHI)
+        {
+            beep();
+        } else {
+            match cc {
+                BKSPCKEY => {
+                    /*  Perform destructive backspace.  */
+                    if !buff.is_empty() {
+                        write!(sout, "{} {}", cc as char, cc as char)?;
+                        let _ = buff.pop();
+                    } else {
+                        buzz();
+                    }
+                }
+                ESCKEY => {
+                    /*  Perform escape (abort input).  */
+                    let mut l = buff.len() as i32;
+                    if (l > 0) {
+                        ctlbkspc(sout, &mut l)?;
+                    }
+                }
+                CTLBKSPCKEY => {
+                    /*  Perform Ctrl-backspace.  */
+                    let mut l = buff.len() as i32;
+                    if (l > 0) {
+                        ctlbkspc(sout, &mut l)?;
+                    } else {
+                        buzz();
+                    }
+                }
+                /*
+                 */
+                ENTERKEY => { /*  Carriage return -- don't do anything  */ }
+                _ => {
+                    // Possibly valid ASCII character
+                    if buff.len() < _length {
+                        cc = ((cc as char).to_uppercase().next().ok_or(
+                            StarTrustError::GeneralError(format!(
+                                "Error converting {} to upper case",
+                                cc
+                            )),
+                        )?) as u8;
+                        if charokay(cc, md.into()) {
+                            buff.push(cc);
+                            write!(sout, "{}", cc)?;
+                        } else {
+                            beep();
+                        }
+                    } else {
+                        beep();
+                    }
+                }
+            }
+        }
     }
-    */
-    if cc == ESCKEY {
+    Ok(if cc == ESCKEY {
         // return -1;
         InputValue::Esc
     } else if buff.is_empty() {
@@ -313,36 +362,36 @@ pub fn getinp(_length: usize, mode: InputMode) -> InputValue {
     } else {
         // return 0;
         InputValue::InputString(String::from_utf8(buff).unwrap())
-    }
+    })
 } /* End getinp */
 
-/*
-void getcourse(void)  /* Gets course and places in variable c */
-{
-char ibuff[5];
-int gb;
+/// Gets course and places in variable c
+pub fn getcourse<R: BufRead, W: Write>(
+    sin: &mut R,
+    sout: &mut W,
+    the_game: &TheGame,
+) -> StResult<f64> {
+    write!(sout, "COURSE (1-8.99)? ")?;
 
-   cprintf("COURSE (1-8.99)? ");
-   gb=getinp(ibuff,4,2);
-   cprintf("\r\n");
-   if (gb!=0)
-      c=0.0;
-   else
-      c=atof(ibuff);
-}  /* End getcourse */
+    let gb = getinp(sin, sout, 4, 2.into());
 
+    writeln!(sout)?;
 
-void getwarp(void)  /* Gets warp and places in variable w */
-{
-char ibuff[5];
-int gb;
+    Ok(if let InputValue::InputString(ibuff) = gb? {
+        ibuff.parse()?
+    } else {
+        0.0
+    })
+} /* End getcourse */
 
-   cprintf("WARP (0-12.0)? ");
-   gb=getinp(ibuff,4,2);
-   cprintf("\r\n");
-   if (gb!=0)
-      w=0.0;
-   else
-      w=atof(ibuff);
-}  /* End getwarp */
- */
+pub fn getwarp<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<f64> {
+    // Gets warp and places in variable w
+    write!(sout, "WARP (0-12.0)? ")?;
+    let gb = getinp(sin, sout, 4, 2.into())?;
+    writeln!(sout)?;
+    Ok(if let InputValue::InputString(ibuff) = gb {
+        ibuff.parse()?
+    } else {
+        0.0
+    })
+} /* End getwarp */
