@@ -2,7 +2,7 @@ use crate::error::StarTrustError;
 use crate::{StResult, TheGame};
 use beep::beep as sound;
 use dim::{dimensions::Frequency, si::Hertz};
-use log::debug;
+use log::{debug, info};
 use num_enum::{FromPrimitive, IntoPrimitive};
 use num_traits::{Num, ToPrimitive};
 use std::io::{BufRead, Read, Write};
@@ -10,7 +10,7 @@ use std::thread;
 use std::time::Duration;
 
 const ESCKEY: u8 = 27; /* 'ESC' key code */
-const ENTERKEY: u8 = 13; /* 'Enter' key code */
+const ENTERKEY: u8 = 10; /* 'Enter' key code *///3
 const MINUS_ENTERKEY: u8 = ((-(ENTERKEY as i32)) & 0xFF) as u8;
 const NULLC: u8 = '\0' as u8; /* Null character */
 const F1KEY: u8 = (-59 & 0xFF) as u8; /* 'F1' key code (following NULL) */
@@ -36,11 +36,12 @@ fn getch<R: Read>(sin: &mut R) -> StResult<Option<char>> {
 }
 
 pub fn clrscr<W: Write>(sout: &mut W) -> StResult<()> {
-    write!(sout, "\x0c").map_err(|e| e.into())
+    write!(sout, "\x0c")?;
+    sout.flush().map_err(|e| e.into())
 }
 
 fn nosound() {
-    sound(Hertz::new(0.0f64));
+    // sound(Hertz::new(0.0f64));
 }
 
 // ********************************************************************
@@ -55,7 +56,7 @@ where
     HZ: Frequency + Into<Hertz<N>>,
     N: Num + ToPrimitive,
 {
-    sound(freq);
+    //sound(freq);
     thread::sleep(dur);
     nosound();
 } // End speaker
@@ -119,6 +120,7 @@ pub fn yesno<R: BufRead, W: Write>(sin: &mut R, stdout: &mut W) -> Result<char, 
 /// Get keypress to continue
 pub fn keytocont<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
     write!(sout, "\nPRESS A KEY TO CONTINUE ... ")?;
+    sout.flush()?;
     clearkeyboard(sin)?;
     let _ = getch(sin)?;
     clearkeyboard(sin)?;
@@ -191,6 +193,7 @@ fn ctlbkspc<W: Write>(sout: &mut W, bl: &mut i32) -> StResult<()> {
     if *bl > 0 {
         for _ in 0..(*bl) {
             write!(sout, "{} {}", BKSPCKEY as char, BKSPCKEY as char)?;
+            sout.flush()?;
         }
         *bl = 0;
     }
@@ -265,6 +268,7 @@ pub fn getinp<R: BufRead, W: Write>(
     let mut cc = 0;
     let mut buff: Vec<u8> = Vec::new();
     while (cc != ENTERKEY) && (cc != ESCKEY) && (cc != MINUS_ENTERKEY) {
+        info!("cc = {} ({})", cc, cc as char);
         if let Some(the_char) = getch(sin)? {
             cc = the_char as u8;
         } else {
@@ -307,6 +311,7 @@ pub fn getinp<R: BufRead, W: Write>(
                     /*  Perform destructive backspace.  */
                     if !buff.is_empty() {
                         write!(sout, "{} {}", cc as char, cc as char)?;
+                        sout.flush()?;
                         let _ = buff.pop();
                     } else {
                         buzz();
@@ -342,7 +347,8 @@ pub fn getinp<R: BufRead, W: Write>(
                         )?) as u8;
                         if charokay(cc, md.into()) {
                             buff.push(cc);
-                            write!(sout, "{}", cc)?;
+                            write!(sout, "{}", cc as char)?;
+                            sout.flush()?;
                         } else {
                             beep();
                         }
@@ -372,6 +378,7 @@ pub fn getcourse<R: BufRead, W: Write>(
     the_game: &TheGame,
 ) -> StResult<f64> {
     write!(sout, "COURSE (1-8.99)? ")?;
+    sout.flush()?;
 
     let gb = getinp(sin, sout, 4, 2.into());
 
@@ -387,6 +394,7 @@ pub fn getcourse<R: BufRead, W: Write>(
 pub fn getwarp<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<f64> {
     // Gets warp and places in variable w
     write!(sout, "WARP (0-12.0)? ")?;
+    sout.flush()?;
     let gb = getinp(sin, sout, 4, 2.into())?;
     writeln!(sout)?;
     Ok(if let InputValue::InputString(ibuff) = gb {

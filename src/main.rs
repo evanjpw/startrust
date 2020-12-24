@@ -39,9 +39,9 @@ fn main() -> Result<(), StarTrustError> {
 
     let the_game_config = get_game_config()?;
 
-    let mut the_game = TheGame::new(&the_game_config);
+    loop {
+        let mut the_game = TheGame::new(&the_game_config);
 
-    loop {//idbg!("",) the_game
         println!("About to print title");
         info!("About to print title");
 
@@ -51,6 +51,7 @@ fn main() -> Result<(), StarTrustError> {
         let _game = the_game.play(&mut sin.lock(), &mut sout)?;
 
         let _ = write!(sout, "\nTRY AGAIN? ")?;
+        sout.flush()?;
         let ans = yesno(&mut sin.lock(), &mut sout)?;
         if ans != 'Y' {
             return Ok(());

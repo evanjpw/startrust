@@ -9,7 +9,7 @@ const QS: &[u8] = b"U.EKB*";
 
 ///
 #[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
-#[repr(u8)]
+#[repr(i32)]
 pub enum SectorContents {
     #[num_enum(default)]
     Unknown = 0,
@@ -22,41 +22,41 @@ pub enum SectorContents {
 
 impl SectorContents {
     pub fn to_char(&self) -> char {
-        let index: u8 = (*self).into();
+        let index: i32 = (*self).into();
         QS[index as usize] as char
     }
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Sector(u8, u8);
+pub struct Sector(i32, i32);
 
 impl Sector {
-    pub(crate) fn new(x: u8, y: u8) -> Self {
+    pub(crate) fn new(x: i32, y: i32) -> Self {
         if x > 7 || y > 7 {
             panic!("Could not create sector ({}, {}), value out of range", x, y)
         }
         Self(x, y)
     }
 
-    fn values(&self) -> (u8, u8) {
+    fn values(&self) -> (i32, i32) {
         (self.0, self.1)
     }
 
-    pub(crate) fn x(&self) -> u8 {
+    pub(crate) fn x(&self) -> i32 {
         self.0
     }
 
-    pub(crate) fn y(&self) -> u8 {
+    pub(crate) fn y(&self) -> i32 {
         self.1
     }
 }
 
 pub struct SectorMap {
-    sect: Vec<Vec<u8>>,
+    sect: Vec<Vec<i32>>,
 }
 
 impl Index<Sector> for SectorMap {
-    type Output = u8;
+    type Output = i32;
 
     fn index(&self, index: Sector) -> &Self::Output {
         let (x, y) = index.values();
@@ -74,7 +74,7 @@ impl IndexMut<Sector> for SectorMap {
 impl SectorMap {
     pub(crate) fn new() -> Self {
         Self {
-            sect: vec![vec![0u8; 8]; 8],
+            sect: vec![vec![0i32; 8]; 8],
         }
     }
 
@@ -82,12 +82,12 @@ impl SectorMap {
         self[sector].into()
     }
 
-    pub(crate) fn sector_contents_at_coords(&self, x: u8, y: u8) -> SectorContents {
+    pub(crate) fn sector_contents_at_coords(&self, x: i32, y: i32) -> SectorContents {
         let sector = Sector::new(x, y);
         self.sector_contents_at(sector)
     }
 
-    pub(crate) fn sector_char_at_coords(&self, x: u8, y: u8) -> char {
+    pub(crate) fn sector_char_at_coords(&self, x: i32, y: i32) -> char {
         let index = self.sector_contents_at_coords(x, y);
         index.to_char()
     }

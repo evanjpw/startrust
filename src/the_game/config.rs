@@ -6,7 +6,7 @@ pub struct TheGameDefs {
     /// Initial Energy
     pub(crate) e0: f64, // Probably could be `f32`
     /// Initial Photon Torpedoes
-    pub(crate) p0: u16, // Probably should be `u8`
+    pub(crate) p0: i32, // Probably should be `u8`
     /// Initial StarDate
     pub(crate) t0: StarDate,
     /// Final StarDate
@@ -15,11 +15,11 @@ pub struct TheGameDefs {
     pub(crate) y1: f64,
     pub(crate) x2: f64,
     pub(crate) y2: f64,
-    x: u16,
-    y: u16,
+    x: i32,
+    y: i32,
     pub(crate) aa: f64,
     pub(crate) s9: f64,
-    pub(crate) k9: u16,
+    pub(crate) k9: i32,
     // #[builder(setter(skip))] #[builder]
 }
 

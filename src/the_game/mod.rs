@@ -2,14 +2,14 @@
 
 use std::io::{BufRead, Write};
 
-use log::error;
+use log::{debug, error};
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::error::StarTrustError::GameStateError;
 use crate::interaction::{beep, delay, getcourse, getinp, getwarp, InputMode, InputValue};
 use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
-use crate::the_game::quadrant::{setupquad, Quadrant, QuadrantMap};
+use crate::the_game::quadrant::{setupquad, Quadrant, QuadrantContents, QuadrantMap};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
 use crate::util::{findslot, fnd, gt, lt, randinit, rnd, setrndxy};
@@ -35,31 +35,31 @@ pub struct TheGame {
     /// Current Energy
     e: f64,
     /// Current Photon Torpedoes
-    p: u16,
+    p: i32,
     /// Current StarDate
     t: StarDate,
-    years: u8,
+    years: i32,
     /// Total remaining Klingons
-    k9: u16,
+    k9: i32,
     /// The Enterprise's x position within the Quadrant
-    s1: u8,
+    s1: i32,
     /// The Enterprise's y position within the Quadrant
-    s2: u8,
+    s2: i32,
     /// The x position of the current Quadrant
-    q1: u8,
+    q1: i32,
     /// The y position of the current Quadrant
-    q2: u8,
+    q2: i32,
     /// The Damage Array
     d: Vec<i32>,
-    k0: u16,
-    k1: Vec<u8>,
-    k2: Vec<u8>,
+    k0: i32,
+    k1: Vec<i32>,
+    k2: Vec<i32>,
     k3: Vec<f64>,
     /// The number of Starbases
-    b9: u16,
+    b9: i32,
     /// New Quadrant
     newquad: bool,
-    k: i16,
+    k: i32,
     /// The Sector Map
     pub(crate) sect: SectorMap,
     /// The Quadrant Map
@@ -68,11 +68,12 @@ pub struct TheGame {
     c: f64,
     /// Warp
     w: f64,
-    b: u32,
+    b: i32,
     /// The current condition of the Enterprise as a String
     cond: &'static str,
     saved_command: Command,
     s: i32,
+    t9: StarDate,
 }
 
 #[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
@@ -105,7 +106,7 @@ impl TheGame {
             e: the_game_defs.e0,
             p: the_game_defs.p0,
             t: the_game_defs.t0,
-            years: (the_game_defs.t9 - the_game_defs.t0) as u8,
+            years: (the_game_defs.t9 - the_game_defs.t0) as i32,
             k9: the_game_defs.k9,
             sect: SectorMap::new(),
             quad: QuadrantMap::new(),
@@ -115,8 +116,8 @@ impl TheGame {
             q2: 0,
             d: vec![0i32; 6],
             k0: 0,
-            k1: vec![0u8; 8],
-            k2: vec![0u8; 8],
+            k1: vec![0i32; 8],
+            k2: vec![0i32; 8],
             k3: vec![0.0; 8],
             game_defs: *the_game_defs,
             b9,
@@ -128,6 +129,7 @@ impl TheGame {
             cond: "",
             saved_command: Command::Undefined, // the global version of `a`
             s: 0,
+            t9: the_game_defs.t9,
         }
     }
     /*
@@ -167,40 +169,51 @@ impl TheGame {
                 let mut n = rnd();
                 if n < x1 {
                     n *= 64.0;
-                    k = lt(n, y1) as i16 - (y as i16);
+                    k = lt(n, y1) as i32 - (y as i32);
                     k = k
-                        + lt(n, x2) as i16
-                        + lt(n, y2) as i16
-                        + lt(n, 0.08) as i16
-                        + lt(n, 0.03) as i16
-                        + lt(n, 0.01) as i16;
-                    k9 -= k as i32;//u16
+                        + lt(n, x2) as i32
+                        + lt(n, y2) as i32
+                        + lt(n, 0.08) as i32
+                        + lt(n, 0.03) as i32
+                        + lt(n, 0.01) as i32;
+                    k9 -= k as i32;
                 }
-                self.b = gt(rnd(), self.game_defs.aa) as u32;
-                b9 -= self.b as u16;
+                self.b = gt(rnd(), self.game_defs.aa);
+                b9 -= self.b as i32; //self.cas f64 self.was i32
                 let quadrant = Quadrant::new(i, j);
-                self.quad[quadrant] = (k as f64 * self.c + (self.b as f64) * self.w
-                    - (rnd() * (x as f64) + (y as f64)).floor())
-                    as i16;
+                self.quad[quadrant] = QuadrantContents::from_i32(
+                    (k * 100 + (self.b * 10)) - (rnd() * (x as f64) + (y as f64)).floor() as i32,
+                );
             }
         }
 
         if k9 > (t9 - t0) as i32 {
-            t9 = t0 + k9 as u16;
+            t9 = t0 + k9 as i32;
         }
 
         if b9 <= 0 {
             let (starbase_x, starbase_y) = setrndxy();
             let quadrant = Quadrant::new(starbase_x, starbase_y);
-            self.quad[quadrant] -= 10;
+            let mut quadrant_value = self.quad[quadrant].as_i32();
+            debug!(
+                "About to subtract ten from quadrant {} with value {}",
+                quadrant, quadrant_value
+            );
+            quadrant_value -= 10;
+            debug!(
+                "About to store value {} in quadrant {}",
+                quadrant_value, quadrant
+            );
+            self.quad[quadrant] = QuadrantContents::from_i32(quadrant_value);
             b9 = 1;
         }
 
         self.k = k;
-        self.k9 = k9 as u16;
-        self.k0 = k9 as u16;
+        self.k9 = k9 as i32;
+        self.k0 = k9 as i32;
         self.b9 = b9;
-        self.years = (t9 - t0) as u8;
+        self.years = (t9 - t0) as i32;
+        self.t9 = t9;
         writeln!(
             sout,
             "OBJECTIVE: DESTROY {} KLINGON BATTLE CRUISERS IN {} YEARS.",
@@ -213,7 +226,7 @@ impl TheGame {
 
     pub fn increment_year(&mut self) {
         self.years -= 1;
-        self.t += 1u16;
+        self.t += 1i32;
     }
 
     fn current_sector(&self) -> Sector {
@@ -221,10 +234,10 @@ impl TheGame {
     }
 
     fn set_current_sector(&mut self, sector: Sector) {
-        self.set_current_quadrant_from_coords(sector.x(), sector.y())
+        self.set_current_sector_from_coords(sector.x(), sector.y())
     }
 
-    fn set_current_sector_from_coords(&mut self, x: u8, y: u8) {
+    fn set_current_sector_from_coords(&mut self, x: i32, y: i32) {
         self.s1 = x;
         self.s2 = y;
     }
@@ -237,14 +250,15 @@ impl TheGame {
         self.set_current_quadrant_from_coords(quadrant.x(), quadrant.y());
     }
 
-    fn set_current_quadrant_from_coords(&mut self, x: u8, y: u8) {
+    fn set_current_quadrant_from_coords(&mut self, x: i32, y: i32) {
         self.q1 = x;
         self.q2 = y;
     }
 
     /// Display current star date
     pub fn showstardate<W: Write>(&self, sout: &mut W) -> StResult<()> {
-        write!(sout, "\nIT IS STARDATE {}.\n", self.t).map_err(|e| {
+        write!(sout, "\nIT IS STARDATE {}.\n", self.t)?;
+        sout.flush().map_err(|e| {
             let e: StarTrustError = e.into();
             e
         })
@@ -259,7 +273,7 @@ impl TheGame {
         for i in (s1 - 1)..=(s1 + 1) {
             for j in (s2 - 1)..=(s2 + 1) {
                 if (i >= 0) && (i <= 7) && (j >= 0) && (j <= 7) {
-                    let sector = Sector::new(i as u8, j as u8);
+                    let sector = Sector::new(i as i32, j as i32);
                     if self.sect[sector] == SectorContents::Starbase.into() {
                         // Docked at starbase
                         self.cond = "DOCKED";
@@ -311,6 +325,7 @@ impl TheGame {
     /// Show damaged item
     fn showdamage<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
         write!(sout, "{} DAMAGED.  ", DS[i])?;
+        sout.flush()?;
         beep();
         self.showestreptime(sout, i)
     } /* End showdamage */
@@ -321,11 +336,11 @@ impl TheGame {
     }
 
     /// Set up string for lr scan or galactic records
-    fn qstr(&self, i: u8, j: u8) -> String {
+    fn qstr(&self, i: i32, j: i32) -> String {
         let quadrant = Quadrant::new(i, j);
         // The printf format string was "%3.3i", which has a width of 3 digits and has leading 0s.
         // I _think_.
-        format!("{:03}", self.quad[quadrant])
+        format!("{:03}", self.quad[quadrant].as_i32())
     } /* End qstr */
 
     /// Check for hits from Klingons
@@ -365,14 +380,17 @@ impl TheGame {
         for i in (q1 - 1)..=(q1 + 1) {
             for j in (q2 - 1)..=(q2 + 1) {
                 write!(sout, "   ")?;
+                sout.flush()?;
                 if (i < 0) || (i > 7) || (j < 0) || (j > 7) {
                     write!(sout, "***")?;
+                    sout.flush()?;
                 } else {
-                    let quadrant = Quadrant::new(i as u8, j as u8);
-                    let value = self.quad[quadrant].abs();
-                    self.quad[quadrant] = value;
-                    let es = self.qstr(i as u8, j as u8);
+                    let quadrant = Quadrant::new(i as i32, j as i32);
+                    // let value = self.quad[quadrant] = value;
+                    self.quad[quadrant].show();
+                    let es = self.qstr(i as i32, j as i32);
                     write!(sout, "{}", es)?;
+                    sout.flush()?;
                 }
             }
             writeln!(sout)?;
@@ -392,12 +410,15 @@ impl TheGame {
         for i in 0..8 {
             for j in 0..8 {
                 write!(sout, "  ")?;
+                sout.flush()?;
                 let quadrant = Quadrant::new(i, j);
-                if self.quad[quadrant] < 0 {
+                if self.quad[quadrant].is_hidden() {
                     write!(sout, "***")?;
+                    sout.flush()?;
                 } else {
-                    let es = self.qstr(i as u8, j as u8);
+                    let es = self.qstr(i as i32, j as i32);
                     write!(sout, "{}", es)?;
+                    sout.flush()?;
                 }
             }
             writeln!(sout)?;
@@ -426,8 +447,10 @@ impl TheGame {
         for i in 0..8 {
             for j in 0..8 {
                 write!(sout, "{} ", self.sect.sector_char_at_coords(i, j))?;
+                sout.flush()?;
             }
             write!(sout, "  ")?;
+            sout.flush()?;
             match i {
                 0 => {
                     writeln!(sout, "YEARS = {}", self.game_defs.t9 - self.t)?;
@@ -470,6 +493,7 @@ impl TheGame {
         }
         loop {
             write!(sout, "PHASERS READY: ENERGY UNITS TO FIRE? ")?;
+            sout.flush()?;
             let gb = getinp(sin, sout, 15, InputMode::Mode2)?;
             writeln!(sout)?;
             if let InputValue::InputString(ibuff) = gb {
@@ -488,6 +512,7 @@ impl TheGame {
         for i in 0..8 {
             if self.k3[i] > 0.0 {
                 let f = fnd(self.k1[i], self.k2[i], self.s1, self.s2);
+                debug!("About to fire phasers: x = {}, y3 = {}, f = {}", x, y3, f);
                 let h = x / (y3 * f.powf(0.4));
                 self.k3[i] -= h;
                 let n = self.k3[i];
@@ -499,7 +524,7 @@ impl TheGame {
                     let sector = Sector::new(self.k1[i], self.k2[i]);
                     self.sect[sector] = 1;
                     let quadrant = self.current_quadrant();
-                    self.quad[quadrant] -= 100;
+                    self.quad[quadrant].decrement_klingons();
                 }
             }
         }
@@ -536,8 +561,9 @@ impl TheGame {
             {
                 // Show torpedo track
                 write!(sout, "{} - {}  ", y7 + 1, x7 + 1)?;
+                sout.flush()?;
             }
-            if self.sect.sector_contents_at_coords(y7 as u8, x7 as u8) != SectorContents::Empty
+            if self.sect.sector_contents_at_coords(y7 as i32, x7 as i32) != SectorContents::Empty
             // Content type 1
             {
                 // Object blocking move or hit by torpedo
@@ -555,12 +581,14 @@ impl TheGame {
                 // Comman #1
                 {
                     write!(sout, "BLOCKED BY ")?;
+                    sout.flush()?;
                 }
-                match self.sect.sector_contents_at_coords(y7 as u8, x7 as u8) {
+                match self.sect.sector_contents_at_coords(y7 as i32, x7 as i32) {
                     SectorContents::Klingon => {
                         // case 3 :
                         // Klingon
                         write!(sout, "KLINGON")?;
+                        sout.flush()?;
                         if a == Command::PhotonTorpedos
                         // Command #5
                         {
@@ -578,6 +606,7 @@ impl TheGame {
                         // case 4 :
                         // Starbase
                         write!(sout, "STARBASE")?;
+                        sout.flush()?;
                         if a == Command::PhotonTorpedos
                         // Command #5
                         {
@@ -589,6 +618,7 @@ impl TheGame {
                         // case 5 :
                         // Star
                         write!(sout, "STAR")?;
+                        sout.flush()?;
                         if a == Command::PhotonTorpedos
                         // Command #5
                         {
@@ -616,8 +646,8 @@ impl TheGame {
             if a == Command::WarpEngines
             // Command #1
             {
-                self.s1 = y2 as u8;
-                self.s2 = x2 as u8;
+                self.s1 = y2 as i32;
+                self.s2 = x2 as i32;
                 let the_sector = self.current_sector();
                 self.sect[the_sector] = 2;
                 // Flag to show we stayed within quadrant
@@ -627,16 +657,17 @@ impl TheGame {
             {
                 // Torpedo
                 write!(sout, " DESTROYED!")?;
+                sout.flush()?;
                 if self.b == 2 {
                     self.b = 0;
                     write!(sout, " . . . GOOD WORK!")?;
+                    sout.flush()?;
                 }
                 writeln!(sout)?;
-                let old_sector = Sector::new(y7 as u8, x7 as u8);
+                let old_sector = Sector::new(y7 as i32, x7 as i32);
                 self.sect[old_sector] = SectorContents::Empty.into(); // Clear old sector (set it to 1)
                 let current_quadrant = Quadrant::new(self.q1, self.q2);
-                self.quad[current_quadrant] =
-                    ((self.k as i32) * 100 + (self.b as i32) * 10 + self.s) as i16;
+                self.quad[current_quadrant] = QuadrantContents::new(self.k, self.b, self.s, false);
             }
         } else {
             // Out of quadrant -- move to new quadrant or torpedo miss
@@ -646,13 +677,14 @@ impl TheGame {
                 // Move
                 self.newquad = true;
                 self.q1 =
-                    (self.q1 as f64 + self.w * y3 + (self.s1 as f64 + 0.5) / 8.0).floor() as u8;
+                    (self.q1 as f64 + self.w * y3 + (self.s1 as f64 + 0.5) / 8.0).floor() as i32; //u8
                 self.q2 =
-                    (self.q2 as f64 + self.w * x3 + (self.s2 as f64 + 0.5) / 8.0).floor() as u8;
+                    (self.q2 as f64 + self.w * x3 + (self.s2 as f64 + 0.5) / 8.0).floor() as i32; //u8
                 self.q1 =
-                    (self.q1 as i32 - lt(self.q1 as f64, 0.0) + gt(self.q1 as f64, 7.0)) as u8;
+                    (self.q1 as i32 - lt(self.q1 as f64, 0.0) + gt(self.q1 as f64, 7.0)) as i32; //u8
                 self.q2 =
-                    (self.q2 as i32 - lt(self.q2 as f64, 0.0) + gt(self.q2 as f64, 7.0)) as u8;
+                    (self.q2 as i32 - lt(self.q2 as f64, 0.0) + gt(self.q2 as f64, 7.0)) as i32;
+            //u8
             } else if a == Command::PhotonTorpedos
             // Command #5
             {
@@ -671,6 +703,7 @@ impl TheGame {
         gamecomp: &mut GameState,
         moved: &mut bool,
     ) -> StResult<()> {
+        let mut w = 0f64;
         let mut c = self.c;
         loop {
             loop {
@@ -683,7 +716,7 @@ impl TheGame {
             }
             if c >= 1.0 {
                 loop {
-                    let w = getwarp(sin, sout)?;
+                    w = getwarp(sin, sout)?;
                     if (w <= 0.0) || (w > 12.0) {
                         c = 10.0;
                         break;
@@ -691,6 +724,7 @@ impl TheGame {
                     if (self.d[0] > 0) && (w > 0.2) {
                         let i = 0;
                         write!(sout, "{} DAMAGED; MAX IS 0.2; ", DS[i])?;
+                        sout.flush()?;
                         self.showestreptime(sout, i)?;
                         beep();
                     } else {
@@ -757,9 +791,10 @@ impl TheGame {
                 }
             }
         }
-        let n = (self.w * 8.0).floor();
+        let n = (w * 8.0).floor();
+        self.w = w;
         self.e = self.e - n - n + 0.5;
-        self.t += 1u16;
+        self.t += 1i32;
         let current_sector = self.current_sector();
         self.sect[current_sector] = 1;
         if self.t > self.game_defs.t9 {
@@ -789,6 +824,7 @@ impl TheGame {
         if self.d[4] > 0 {
             // Torpedoes damaged
             write!(sout, "SPACE CRUD BLOCKING TUBES.  ")?;
+            sout.flush()?;
             let i = 4;
             self.showestreptime(sout, i)?;
             beep();
@@ -802,6 +838,7 @@ impl TheGame {
         self.c = 10.0;
         while self.c >= 9.0 {
             write!(sout, "TORPEDO ")?;
+            sout.flush()?;
 
             self.c = getcourse(sin, sout, self)?;
         }
@@ -811,6 +848,7 @@ impl TheGame {
         }
         self.p -= 1;
         write!(sout, "TRACK: ")?;
+        sout.flush()?;
         self.dopath(sout, *a, n)?;
         *a = self.saved_command;
         let i = n;
@@ -863,6 +901,7 @@ impl TheGame {
                 /* Command loop (-99 or ESC to quit) */
                 {
                     write!(sout, "COMMAND? ")?;
+                    sout.flush()?;
                     let ebuff = getinp(sin, sout, 7, 2.into())?;
                     writeln!(sout)?;
                     let int_a;
@@ -873,6 +912,7 @@ impl TheGame {
                     }
                     if int_a == -99 {
                         write!(sout, "\nARE YOU SURE YOU WANT TO QUIT? ")?;
+                        sout.flush()?;
                         let ans = yesno(sin, sout)?;
                         if ans == 'Y' {
                             gamecomp = (-99).into();

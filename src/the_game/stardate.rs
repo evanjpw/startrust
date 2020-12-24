@@ -2,10 +2,10 @@ use std::fmt::{Display, Formatter};
 use std::ops;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Copy, Clone, Default)]
-pub struct StarDate(u16);
+pub struct StarDate(i32);
 
 impl StarDate {
-    pub fn new(t: u16) -> Self {
+    pub fn new(t: i32) -> Self {
         Self(t)
     }
 }
@@ -16,7 +16,8 @@ impl Display for StarDate {
     }
 }
 
-impl<I: Into<u16>> ops::Add<I> for StarDate {
+impl<I: Into<i32>> ops::Add<I> for StarDate {
+    //u16
     type Output = StarDate;
 
     fn add(self, rhs: I) -> StarDate {
@@ -24,16 +25,17 @@ impl<I: Into<u16>> ops::Add<I> for StarDate {
     }
 }
 
-impl<I: Into<u16>> ops::AddAssign<I> for StarDate {
+impl<I: Into<i32>> ops::AddAssign<I> for StarDate {
+    //u16
     fn add_assign(&mut self, rhs: I) {
         *self = StarDate(self.0 + rhs.into());
     }
 }
 
 impl ops::Sub<StarDate> for StarDate {
-    type Output = u16;
+    type Output = i32; //u16
 
-    fn sub(self, rhs: StarDate) -> u16 {
+    fn sub(self, rhs: StarDate) -> i32 {
         self.0 - rhs.0
-    }
+    } //u16
 }

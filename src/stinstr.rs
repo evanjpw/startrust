@@ -16,16 +16,18 @@ pub fn title<W: Write>(sout: &mut W) -> StResult<()> {
 
 pub fn showinst<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
     write!(sout, "DO YOU NEED INSTRUCTIONS Y/N)? ")?;
+    sout.flush()?;
     loop {
         let ans = yesno(sin, sout)?;
-        if ans != 'N' {
+        if ans != 'Y' {
             return Ok(());
         }
         clrscr(sout)?;
 
-        write!(sout, "{}", INSTRUCTIONS)?;
+        // write!(sout, "{}", INSTRUCTIONS)?;
 
         write!(sout, "\n\nREPEAT THESE INSTRUCTIONS (Y/N)?")?;
+        sout.flush()?
     }
 }
 

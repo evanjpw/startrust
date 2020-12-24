@@ -5,9 +5,9 @@ use crate::the_game::{Sector, SectorContents, SectorMap};
 use rand::{thread_rng, Rng};
 
 /// Set a random x and y in interval \[0,7\]
-pub fn setrndxy() -> (u8, u8) {
-    let x: u8 = thread_rng().gen_range(0..8);
-    let y: u8 = thread_rng().gen_range(0..8);
+pub fn setrndxy() -> (i32, i32) {
+    let x: i32 = thread_rng().gen_range(0..8);
+    let y: i32 = thread_rng().gen_range(0..8);
     (x, y)
 } /* End setrndxy */
 
@@ -45,7 +45,6 @@ pub fn randinit() -> f64 {
     0.0f64
 } /* End randinit */
 
-
 /// Get fractional part of (double) real number
 fn frac(r: f64) -> f64 {
     r.fract()
@@ -62,7 +61,7 @@ pub fn rnd() -> f64 {
 } /* End rnd */
 
 /// Determine damage hit amount (distance-dependent)
-pub fn fnd(k1_i: u8, k2_i: u8, s1: u8, s2: u8) -> f64 {
+pub fn fnd(k1_i: i32, k2_i: i32, s1: i32, s2: i32) -> f64 {
     let k1_i = k1_i as f64; // k1[i]
     let k2_i = k2_i as f64; // k2[i]
     let s1 = s1 as f64;
