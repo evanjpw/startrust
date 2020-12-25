@@ -24,7 +24,7 @@ pub fn show_instructions<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StR
         }
         clrscr(sout)?;
 
-        // write!(sout, "{}", INSTRUCTIONS)?;
+        write!(sout, "{}", INSTRUCTIONS)?;
 
         write!(sout, "\n\nREPEAT THESE INSTRUCTIONS (Y/N)?")?;
         sout.flush()?
