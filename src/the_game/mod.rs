@@ -150,7 +150,7 @@ impl TheGame {
         rand_init();
         self.fix_damage();
         let (mut x, mut y) = set_random_x_y();
-        self.set_current_sector_from_coords(x, y);
+        self.set_current_quadrant_from_coords(x, y);
         x = 8;
         y = 1;
         let mut b9 = self.b9;
