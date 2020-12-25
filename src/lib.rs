@@ -5,7 +5,7 @@ extern crate dimensioned as dim;
 
 pub use error::{StResult, StarTrustError};
 pub use interaction::{clrscr, yesno};
-pub use stinstr::{showinst, title};
+pub use stinstr::{show_instructions, show_title};
 pub use the_game::{TheGame, TheGameDefs, TheGameDefsBuilder};
 
 mod error;

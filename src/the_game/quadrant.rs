@@ -1,7 +1,7 @@
 use std::ops::{Index, IndexMut};
 
 use crate::the_game::{Sector, SectorContents};
-use crate::util::{findslot, setrndxy};
+use crate::util::{find_slot, set_random_x_y};
 use crate::TheGame;
 use std::fmt::{Display, Formatter};
 // use log::{debug};
@@ -142,7 +142,7 @@ impl IndexMut<Quadrant> for QuadrantMap {
 }
 
 /// Setup a quadrant as the ship arrives
-pub fn setupquad(the_game: &mut TheGame) {
+pub fn setup_quadrant(the_game: &mut TheGame) {
     let quadrant = the_game.current_quadrant();
     let s9 = the_game.s9();
     // Set the  global "command" to "None".
@@ -165,7 +165,7 @@ pub fn setupquad(the_game: &mut TheGame) {
         k = n / 100;
     }
     let b: i32 = (n / 10 - (k * 10));
-    let (x, y) = setrndxy();
+    let (x, y) = set_random_x_y();
     let current_sector = Sector::new(x, y);
     the_game.set_current_sector(current_sector);
     let sect = &mut the_game.sect;
@@ -184,7 +184,7 @@ pub fn setupquad(the_game: &mut TheGame) {
         the_game.k3[i] = 0.0;
         kx = 8;
         if (i as i32) < k {
-            let sector = findslot(sect);
+            let sector = find_slot(sect);
             kx = sector.x();
             ky = sector.y();
             sect[sector] = SectorContents::Klingon.into();
@@ -194,12 +194,12 @@ pub fn setupquad(the_game: &mut TheGame) {
         the_game.k2[i] = ky;
     }
     if b > 0 {
-        let sector = findslot(sect);
+        let sector = find_slot(sect);
         sect[sector] = SectorContents::Starbase.into();
     }
 
     for _ in 0..s {
-        let sector = findslot(sect);
+        let sector = find_slot(sect);
         sect[sector] = SectorContents::Star.into();
     }
     the_game.k = k;

@@ -18,7 +18,7 @@ use std::io::{stdin, stdout, BufRead, Write};
 use log::info;
 
 use startrust::{
-    clrscr, showinst, title, yesno, StResult, StarTrustError, TheGame, TheGameDefs,
+    clrscr, show_instructions, show_title, yesno, StResult, StarTrustError, TheGame, TheGameDefs,
     TheGameDefsBuilder,
 };
 
@@ -34,8 +34,8 @@ fn main() -> Result<(), StarTrustError> {
 
     let sin = stdin();
     let mut sout = stdout();
-    title(&mut sout)?;
-    showinst(&mut sin.lock(), &mut sout)?;
+    show_title(&mut sout)?;
+    show_instructions(&mut sin.lock(), &mut sout)?;
 
     let the_game_config = get_game_config()?;
 
@@ -46,7 +46,7 @@ fn main() -> Result<(), StarTrustError> {
         info!("About to print title");
 
         clrscr(&mut sout)?;
-        title(&mut sout)?;
+        show_title(&mut sout)?;
 
         let _game = the_game.play(&mut sin.lock(), &mut sout)?;
 

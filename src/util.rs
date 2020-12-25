@@ -5,16 +5,16 @@ use crate::the_game::{Sector, SectorContents, SectorMap};
 use rand::{thread_rng, Rng};
 
 /// Set a random x and y in interval \[0,7\]
-pub fn setrndxy() -> (i32, i32) {
+pub fn set_random_x_y() -> (i32, i32) {
     let x: i32 = thread_rng().gen_range(0..8);
     let y: i32 = thread_rng().gen_range(0..8);
     (x, y)
 } /* End setrndxy */
 
 /// Find an unoccupied sector
-pub fn findslot(sector_map: &SectorMap) -> Sector {
+pub fn find_slot(sector_map: &SectorMap) -> Sector {
     loop {
-        let (x, y) = setrndxy();
+        let (x, y) = set_random_x_y();
         let sector = Sector::new(x, y);
         if sector_map.sector_contents_at(sector) == SectorContents::Empty {
             return sector;
@@ -24,7 +24,7 @@ pub fn findslot(sector_map: &SectorMap) -> Sector {
 
 //doublevoid
 /* Initialize pseudo-random number generator */
-pub fn randinit() -> f64 {
+pub fn rand_init() -> f64 {
     /*
     struct time t;
     double r1,r2,r3,r4;

@@ -9,10 +9,10 @@ use crate::error::StarTrustError::GameStateError;
 use crate::interaction::{beep, delay, getcourse, getinp, getwarp, InputMode, InputValue};
 use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
-use crate::the_game::quadrant::{setupquad, Quadrant, QuadrantContents, QuadrantMap};
+use crate::the_game::quadrant::{setup_quadrant, Quadrant, QuadrantContents, QuadrantMap};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
-use crate::util::{findslot, fnd, gt, lt, randinit, rnd, setrndxy};
+use crate::util::{find_slot, fnd, gt, lt, rand_init, rnd, set_random_x_y};
 use crate::{yesno, StResult, StarTrustError};
 use std::f64::consts::FRAC_PI_4;
 
@@ -139,7 +139,7 @@ impl TheGame {
      */
 
     /// Repair anything that is down
-    pub fn fixdamage(&mut self) {
+    pub fn fix_damage(&mut self) {
         for i in 0..6 {
             self.d[i] = 0;
         }
@@ -147,9 +147,9 @@ impl TheGame {
 
     /// Initialize
     pub fn init<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
-        randinit();
-        self.fixdamage();
-        let (mut x, mut y) = setrndxy();
+        rand_init();
+        self.fix_damage();
+        let (mut x, mut y) = set_random_x_y();
         self.set_current_sector_from_coords(x, y);
         x = 8;
         y = 1;
@@ -194,7 +194,7 @@ impl TheGame {
         }
 
         if b9 <= 0 {
-            let (starbase_x, starbase_y) = setrndxy();
+            let (starbase_x, starbase_y) = set_random_x_y();
             let quadrant = Quadrant::new(starbase_x, starbase_y);
             let mut quadrant_value = self.quad[quadrant].as_i32();
             debug!(
@@ -258,7 +258,7 @@ impl TheGame {
     }
 
     /// Display current star date
-    pub fn showstardate<W: Write>(&self, sout: &mut W) -> StResult<()> {
+    pub fn show_stardate<W: Write>(&self, sout: &mut W) -> StResult<()> {
         write!(sout, "\nIT IS STARDATE {}.\n", self.t)?;
         sout.flush().map_err(|e| {
             let e: StarTrustError = e.into();
@@ -267,7 +267,7 @@ impl TheGame {
     } /* End showstardate */
 
     /// Check condition
-    fn checkcond(&mut self) {
+    fn check_condition(&mut self) {
         let s1 = self.s1 as i32;
         let s2 = self.s2 as i32;
         let e0 = self.game_defs.e0;
@@ -281,7 +281,7 @@ impl TheGame {
                         self.cond = "DOCKED";
                         self.e = e0;
                         self.p = p0;
-                        self.fixdamage();
+                        self.fix_damage();
                         return;
                     }
                 }
@@ -300,7 +300,7 @@ impl TheGame {
     } /* End checkcond */
 
     /// Show hit on Enterprise or Klingon
-    fn showhit<W: Write>(&self, sout: &mut W, i: usize, es: &str, n: f64, h: f64) -> StResult<()> {
+    fn show_hit<W: Write>(&self, sout: &mut W, i: usize, es: &str, n: f64, h: f64) -> StResult<()> {
         writeln!(
             sout,
             "{:.3} UNIT HIT ON {} SECTOR {} - {}  ({:.3} LEFT)",
@@ -317,7 +317,7 @@ impl TheGame {
     } /* End showhit */
 
     /// Show estimated time for repair
-    fn showestreptime<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
+    fn show_est_repair_time<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
         writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i]).map_err(|e| {
             let e = e.into();
             e
@@ -325,11 +325,11 @@ impl TheGame {
     } /* End showestreptime */
 
     /// Show damaged item
-    fn showdamage<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
+    fn show_damage<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
         write!(sout, "{} DAMAGED.  ", DS[i])?;
         sout.flush()?;
         beep();
-        self.showestreptime(sout, i)
+        self.show_est_repair_time(sout, i)
     } /* End showdamage */
 
     fn is_docked(&self) -> bool {
@@ -346,7 +346,7 @@ impl TheGame {
     } /* End qstr */
 
     /// Check for hits from Klingons
-    fn checkforhits<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+    fn check_for_hits<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
         if self.k < 1 {
             /* No Klingons here! */
             return Ok(());
@@ -362,18 +362,18 @@ impl TheGame {
                 h /= fnd(self.k1[i], self.k2[i], self.s1, self.s2).powf(0.4);
                 self.e -= h;
                 let n: f64 = self.e;
-                self.showhit(sout, i, "ENTERPRISE FROM", n, h)?;
+                self.show_hit(sout, i, "ENTERPRISE FROM", n, h)?;
             }
         }
         Ok(())
     } /* End checkforhits */
 
     /// Do long-range scan
-    fn lrscan<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+    fn l_range_scan<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
         let i = 2;
         if self.d[i] > 0 {
             // Long-range scan inoperative
-            self.showdamage(sout, i)?;
+            self.show_damage(sout, i)?;
             return Ok(());
         }
         let q1: i32 = self.q1 as i32;
@@ -401,11 +401,11 @@ impl TheGame {
     } /* End lrscan */
 
     /// Do galactic records
-    fn galrecs<W: Write>(&self, sout: &mut W) -> StResult<()> {
+    fn galactic_records<W: Write>(&self, sout: &mut W) -> StResult<()> {
         let i = 5;
         if self.d[i] > 0 {
             // Galactic records inoperative
-            self.showdamage(sout, i)?;
+            self.show_damage(sout, i)?;
             return Ok(());
         }
         writeln!(sout, "CUMULATIVE GALACTIC MAP FOR STARDATE {}", self.t)?;
@@ -429,12 +429,12 @@ impl TheGame {
     } /* End galrecs */
 
     /// Do short-range scan
-    fn srscan<W: Write>(&mut self, sout: &mut W, a: i32) -> StResult<()> {
-        self.checkcond(); //?
+    fn s_range_scan<W: Write>(&mut self, sout: &mut W, a: i32) -> StResult<()> {
+        self.check_condition(); //?
         if a == 0
         /* Initial entry into quadrant */
         {
-            self.checkforhits(sout)?;
+            self.check_for_hits(sout)?;
             if self.e <= 0.0 {
                 /* Ran out of energy! */
                 return Ok(());
@@ -443,7 +443,7 @@ impl TheGame {
         let i = 1;
         if self.d[i] > 0 {
             // Short-range scan inoperative
-            self.showdamage(sout, i)?;
+            self.show_damage(sout, i)?;
             return Ok(());
         }
         for i in 0..8 {
@@ -490,7 +490,7 @@ impl TheGame {
         let i = 3;
         if self.d[i] > 0 {
             // Phasers inoperative
-            self.showdamage(sout, i)?;
+            self.show_damage(sout, i)?;
             return Ok(x);
         }
         loop {
@@ -518,7 +518,7 @@ impl TheGame {
                 let h = x / (y3 * f.powf(0.4));
                 self.k3[i] -= h;
                 let n = self.k3[i];
-                self.showhit(sout, i, "KLINGON AT", n, h)?;
+                self.show_hit(sout, i, "KLINGON AT", n, h)?;
                 if self.k3[i] <= 0.0 {
                     writeln!(sout, "**KLINGON DESTROYED**")?;
                     self.k -= 1;
@@ -534,7 +534,7 @@ impl TheGame {
     } /* End phasers */
 
     /// Do the path for warp or torpedo
-    fn dopath<W: Write>(&mut self, sout: &mut W, a: Command, n: f64) -> StResult<()> {
+    fn do_path<W: Write>(&mut self, sout: &mut W, a: Command, n: f64) -> StResult<()> {
         let mut y1 = self.s1 as f64 + 0.5;
         let mut x1 = self.s2 as f64 + 0.5;
         let mut y3 = (self.c - 1.0) as f64 * FRAC_PI_4; // `FRAC_PI_4` _was_ `0.785398`
@@ -727,7 +727,7 @@ impl TheGame {
                         let i = 0;
                         write!(sout, "{} DAMAGED; MAX IS 0.2; ", DS[i])?;
                         sout.flush()?;
-                        self.showestreptime(sout, i)?;
+                        self.show_est_repair_time(sout, i)?;
                         beep();
                     } else {
                         break;
@@ -743,7 +743,7 @@ impl TheGame {
             // Abort move
             return Ok(());
         }
-        self.checkforhits(sout)?;
+        self.check_for_hits(sout)?;
         if self.e <= 0.0 {
             /* Ran out of energy */
             *gamecomp = (-1).into();
@@ -757,7 +757,7 @@ impl TheGame {
                 self.d[x] += (6.0 - rnd() * 5.0).floor() as i32;
                 writeln!(sout, "**SPACE STORM, {} DAMAGED**", DS[x])?;
                 let i = x;
-                self.showestreptime(sout, i)?;
+                self.show_est_repair_time(sout, i)?;
                 self.d[x] += 1;
                 delay(100);
                 beep();
@@ -804,7 +804,7 @@ impl TheGame {
             *gamecomp = (-1).into();
             return Ok(());
         }
-        self.dopath(sout, *a, n)?;
+        self.do_path(sout, *a, n)?;
         *a = self.saved_command;
         let i = n;
         if self.e <= 0.0 {
@@ -828,7 +828,7 @@ impl TheGame {
             write!(sout, "SPACE CRUD BLOCKING TUBES.  ")?;
             sout.flush()?;
             let i = 4;
-            self.showestreptime(sout, i)?;
+            self.show_est_repair_time(sout, i)?;
             beep();
             return Ok(());
         }
@@ -851,14 +851,14 @@ impl TheGame {
         self.p -= 1;
         write!(sout, "TRACK: ")?;
         sout.flush()?;
-        self.dopath(sout, *a, n)?;
+        self.do_path(sout, *a, n)?;
         *a = self.saved_command;
         let i = n;
         if self.e <= 0.0 {
             /* Ran out of energy */
             *gamecomp = (-1).into();
         }
-        self.checkforhits(sout)?;
+        self.check_for_hits(sout)?;
         if self.e <= 0.0 {
             /* Ran out of energy */
             *gamecomp = (-1).into();
@@ -868,7 +868,7 @@ impl TheGame {
             *gamecomp = 1.into();
         }
         if !gamecomp.is_done() {
-            self.checkcond();
+            self.check_condition();
         }
         Ok(())
     }
@@ -889,12 +889,12 @@ impl TheGame {
 
         while !gamecomp.is_done() {
             if self.newquad {
-                setupquad(self);
+                setup_quadrant(self);
                 a = self.saved_command;
             }
             self.newquad = false;
             moved = false;
-            self.srscan(sout, a.into())?;
+            self.s_range_scan(sout, a.into())?;
             if self.e <= 0.0 {
                 /* Ran out of energy */
                 gamecomp = GameState::Lost;
@@ -941,12 +941,12 @@ impl TheGame {
                         Command::ShortRangeScan => {
                             //case 2 :
                             // Short-range scan
-                            self.srscan(sout, a.into())?;
+                            self.s_range_scan(sout, a.into())?;
                         }
                         Command::LongRangeScan => {
                             //case 3 :
                             /* Long-range scan */
-                            self.lrscan(sout)?;
+                            self.l_range_scan(sout)?;
                         }
                         Command::Phasers => {
                             //case 4 :
@@ -957,7 +957,7 @@ impl TheGame {
                                     /* Ran out of energy */
                                     gamecomp = (-1).into();
                                 }
-                                self.checkforhits(sout)?;
+                                self.check_for_hits(sout)?;
                                 if self.e <= 0.0 {
                                     /* Ran out of energy */
                                     gamecomp = (-1).into();
@@ -967,7 +967,7 @@ impl TheGame {
                                     gamecomp = 1.into();
                                 }
                                 if !gamecomp.is_done() {
-                                    self.checkcond()
+                                    self.check_condition()
                                 };
                             }
                         }
@@ -979,7 +979,7 @@ impl TheGame {
                         Command::Galacticrecords => {
                             //case 6 :
                             /* Galactic records */
-                            self.galrecs(sout)?;
+                            self.galactic_records(sout)?;
                         }
                         Command::Undefined => {
                             error!("undefined command in command loop.")
@@ -1001,7 +1001,7 @@ impl TheGame {
             }
         } /* Game is over! */
 
-        self.showstardate(sout)?;
+        self.show_stardate(sout)?;
         match gamecomp {
             GameState::Won => {
                 let t = self.t;
