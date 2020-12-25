@@ -2,10 +2,10 @@
 name = "startrust"
 description = ""
 version = "0.1.0"
-authors = ["Evan Williams <evan.williams@pathai.com>"]
+authors = ["Evan Williams <ejw@fig.com>"]
 edition = "2018"
 readme = "README.md"
-repository = ""
+repository = "https://bitbucket.org/evanjpw/startrust.git"
 categories = []
 exclude = ["./.detritus"]
 
@@ -20,6 +20,11 @@ rand = "0.8"
 num_enum = "0.5.1"
 log = "0.4.11"
 pretty_env_logger = "0.4"
+termcolor ="1.1"
+atty = "0.2.14"
+clap = "3.0.0-beta.2"
+strum = "0.20"
+strum_macros = "0.20"
 
 [dependencies.num-traits]
 version = "0.2"

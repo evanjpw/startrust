@@ -10,6 +10,7 @@ use num_traits::{Num, ToPrimitive};
 use std::io::{BufRead, Read, Write};
 use std::thread;
 use std::time::Duration;
+use termcolor::WriteColor;
 
 const ESCKEY: u8 = 27; /* 'ESC' key code */
 const ENTERKEY: u8 = 10; /* 'Enter' key code *///3
@@ -37,7 +38,7 @@ fn getch<R: Read>(sin: &mut R) -> StResult<Option<char>> {
     getbyte(sin).map(|option_b| option_b.map(|b| b as char))
 }
 
-pub fn clrscr<W: Write>(sout: &mut W) -> StResult<()> {
+pub fn clrscr<W: WriteColor>(sout: &mut W) -> StResult<()> {
     write!(sout, "\x0c")?;
     sout.flush().map_err(|e| e.into())
 }
@@ -108,7 +109,8 @@ pub fn fgetline<R: BufRead>(_stream: &mut R) -> Result<String, StarTrustError> {
   //char *buff,int blen,FILE *stream
 
 /// Get Y or N from user and place result in ans
-pub fn yesno<R: BufRead>(sin: &mut R, //, W: Write stdout: &mut W
+pub fn yesno<R: BufRead>(
+    sin: &mut R, //, W: WriteColor stdout: &mut W
 ) -> Result<char, StarTrustError> {
     loop {
         if let Some(c) = getch(sin)? {
@@ -124,7 +126,7 @@ pub fn yesno<R: BufRead>(sin: &mut R, //, W: Write stdout: &mut W
 
 /// Get keypress to continue
 #[allow(dead_code)]
-pub fn keytocont<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
+pub fn keytocont<R: BufRead, W: WriteColor>(sin: &mut R, sout: &mut W) -> StResult<()> {
     write!(sout, "\nPRESS A KEY TO CONTINUE ... ")?;
     sout.flush()?;
     clearkeyboard(sin)?;
@@ -195,7 +197,7 @@ fn charokay(cc: u8, mode: InputMode) -> bool {
 } /* End charokay */
 
 /// Do a Ctrl-Backspace
-fn ctlbkspc<W: Write>(sout: &mut W, bl: &mut i32) -> StResult<()> {
+fn ctlbkspc<W: WriteColor>(sout: &mut W, bl: &mut i32) -> StResult<()> {
     if *bl > 0 {
         for _ in 0..(*bl) {
             write!(sout, "{} {}", BKSPCKEY as char, BKSPCKEY as char)?;
@@ -265,7 +267,7 @@ impl InputValue {
     Returns:      0 for successful read; 1 for CR only; -1 for ESC
     Includes:     conio.h
 */
-pub fn getinp<R: BufRead, W: Write>(
+pub fn getinp<R: BufRead, W: WriteColor>(
     sin: &mut R,
     sout: &mut W,
     _length: usize,
@@ -377,7 +379,7 @@ pub fn getinp<R: BufRead, W: Write>(
 } /* End getinp */
 
 /// Gets course and places in variable c
-pub fn getcourse<R: BufRead, W: Write>(
+pub fn getcourse<R: BufRead, W: WriteColor>(
     sin: &mut R,
     sout: &mut W,
     // the_game: &TheGame,
@@ -396,7 +398,7 @@ pub fn getcourse<R: BufRead, W: Write>(
     })
 } /* End getcourse */
 
-pub fn getwarp<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<f64> {
+pub fn getwarp<R: BufRead, W: WriteColor>(sin: &mut R, sout: &mut W) -> StResult<f64> {
     // Gets warp and places in variable w
     write!(sout, "WARP (0-12.0)? ")?;
     sout.flush()?;

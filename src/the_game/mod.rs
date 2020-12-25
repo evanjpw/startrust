@@ -1,9 +1,14 @@
 //! # startrust::the_game
 
+use std::convert::AsRef;
+use std::f64::consts::FRAC_PI_4;
 use std::io::{BufRead, Write};
 
 use log::{debug, error};
 use num_enum::{FromPrimitive, IntoPrimitive};
+use strum_macros::{AsRefStr, EnumString};
+//Static&'static str"".""//""""""""
+use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::error::StarTrustError::GameStateError;
 use crate::interaction::{beep, delay, getcourse, getinp, getwarp, InputMode, InputValue};
@@ -12,9 +17,8 @@ pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
 use crate::the_game::quadrant::{setup_quadrant, Quadrant, QuadrantContents, QuadrantMap};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
-use crate::util::{fnd, gt, lt, rand_init, rnd, set_random_x_y}; // find_slot,
+use crate::util::{fnd, gt, lt, rand_init, rnd, set_random_x_y};
 use crate::{yesno, StResult, StarTrustError};
-use std::f64::consts::FRAC_PI_4;
 
 mod commands;
 mod config;
@@ -30,6 +34,67 @@ const DS: &'static [&'static str] = &[
     "PHOTON TORPEDOES",
     "GALACTIC RECORDS",
 ];
+
+#[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
+#[repr(i32)]
+pub enum GameState {
+    #[num_enum(default)]
+    InProgress = 0,
+    Won = 1,
+    Lost = -1,
+    Quit = -99,
+}
+
+impl GameState {
+    fn is_done(&self) -> bool {
+        match self {
+            GameState::InProgress => false,
+            _ => true,
+        }
+    }
+}
+
+#[derive(AsRefStr, Debug, PartialEq, EnumString)]
+enum Condition {
+    #[strum(serialize = "RED")]
+    Red,
+    #[strum(serialize = "YELLOW")]
+    Yellow,
+    #[strum(serialize = "GREEN")]
+    Green,
+    #[strum(serialize = "DOCKED")]
+    Docked,
+    #[strum(serialize = "")] // UNDEFINED
+    Undefined,
+}
+
+impl Condition {
+    fn get_color_spec(&self) -> ColorSpec {
+        match self {
+            Condition::Red => {
+                let mut c = ColorSpec::new();
+                c.set_fg(Some(Color::Red));
+                c
+            }
+            Condition::Yellow => {
+                let mut c = ColorSpec::new();
+                c.set_fg(Some(Color::Yellow));
+                c
+            }
+            Condition::Green => {
+                let mut c = ColorSpec::new();
+                c.set_fg(Some(Color::Green));
+                c
+            }
+            Condition::Docked => {
+                let mut c = ColorSpec::new();
+                c.set_fg(Some(Color::Cyan));
+                c
+            }
+            Condition::Undefined => ColorSpec::new(),
+        }
+    }
+}
 
 pub struct TheGame {
     /// Current Energy
@@ -70,31 +135,11 @@ pub struct TheGame {
     w: f64,
     b: i32,
     /// The current condition of the Enterprise as a String
-    cond: &'static str,
+    cond: Condition,
     saved_command: Command,
     s: i32,
     t9: StarDate,
 }
-
-#[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
-#[repr(i32)]
-pub enum GameState {
-    #[num_enum(default)]
-    InProgress = 0,
-    Won = 1,
-    Lost = -1,
-    Quit = -99,
-}
-
-impl GameState {
-    fn is_done(&self) -> bool {
-        match self {
-            GameState::InProgress => false,
-            _ => true,
-        }
-    }
-}
-
 impl TheGame {
     pub fn new(the_game_defs: &TheGameDefs) -> Self {
         // s1 & s2 and q1 & q2 are not set initially, we will use (0, 0) the game
@@ -126,7 +171,7 @@ impl TheGame {
             c,
             w,
             b: 0,
-            cond: "",
+            cond: Condition::Undefined,
             saved_command: Command::Undefined, // the global version of `a`
             s: 0,
             t9: the_game_defs.t9,
@@ -146,7 +191,7 @@ impl TheGame {
     } /* End fixdamage */
 
     /// Initialize
-    pub fn init<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+    pub fn init<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
         rand_init();
         self.fix_damage();
         let (mut x, mut y) = set_random_x_y();
@@ -258,8 +303,12 @@ impl TheGame {
         self.q2 = y;
     }
 
+    fn is_current_quadrant(&self, x: i32, y: i32) -> bool {
+        x == self.q1 && y == self.q2
+    }
+
     /// Display current star date
-    pub fn show_stardate<W: Write>(&self, sout: &mut W) -> StResult<()> {
+    pub fn show_stardate<W: WriteColor>(&self, sout: &mut W) -> StResult<()> {
         write!(sout, "\nIT IS STARDATE {}.\n", self.t)?;
         sout.flush().map_err(|e| {
             let e: StarTrustError = e.into();
@@ -279,7 +328,7 @@ impl TheGame {
                     let sector = Sector::new(i as i32, j as i32);
                     if self.sect[sector] == SectorContents::Starbase.into() {
                         // Docked at starbase
-                        self.cond = "DOCKED";
+                        self.cond = Condition::Docked;
                         self.e = e0;
                         self.p = p0;
                         self.fix_damage();
@@ -290,18 +339,25 @@ impl TheGame {
         }
         if self.k > 0 {
             // Klingons present!
-            self.cond = "RED";
+            self.cond = Condition::Red;
         } else if self.e < (0.1 * e0) {
             // Low energy
-            self.cond = "YELLOW";
+            self.cond = Condition::Yellow;
         } else {
             // A-OK!
-            self.cond = "GREEN";
+            self.cond = Condition::Green;
         }
     } /* End checkcond */
 
     /// Show hit on Enterprise or Klingon
-    fn show_hit<W: Write>(&self, sout: &mut W, i: usize, es: &str, n: f64, h: f64) -> StResult<()> {
+    fn show_hit<W: WriteColor>(
+        &self,
+        sout: &mut W,
+        i: usize,
+        es: &str,
+        n: f64,
+        h: f64,
+    ) -> StResult<()> {
         writeln!(
             sout,
             "{:.3} UNIT HIT ON {} SECTOR {} - {}  ({:.3} LEFT)",
@@ -318,7 +374,7 @@ impl TheGame {
     } /* End showhit */
 
     /// Show estimated time for repair
-    fn show_est_repair_time<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
+    fn show_est_repair_time<W: WriteColor>(&self, sout: &mut W, i: usize) -> StResult<()> {
         writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i]).map_err(|e| {
             let e = e.into();
             e
@@ -326,7 +382,7 @@ impl TheGame {
     } /* End showestreptime */
 
     /// Show damaged item
-    fn show_damage<W: Write>(&self, sout: &mut W, i: usize) -> StResult<()> {
+    fn show_damage<W: WriteColor>(&self, sout: &mut W, i: usize) -> StResult<()> {
         write!(sout, "{} DAMAGED.  ", DS[i])?;
         sout.flush()?;
         beep();
@@ -335,11 +391,11 @@ impl TheGame {
 
     fn is_docked(&self) -> bool {
         // This is an amazingly stupid way to do this, but it's how they do it
-        self.cond == "DOCKED"
+        self.cond == Condition::Docked
     }
 
     /// Set up string for lr scan or galactic records
-    fn qstr(&self, i: i32, j: i32) -> String {
+    fn qstr(&self, i: i32, j: i32, is_current: bool) -> String {
         let quadrant = Quadrant::new(i, j);
         // The printf format string was "%3.3i", which has a width of 3 digits and has leading 0s.
         // I _think_.
@@ -347,7 +403,7 @@ impl TheGame {
     } /* End qstr */
 
     /// Check for hits from Klingons
-    fn check_for_hits<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+    fn check_for_hits<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
         if self.k < 1 {
             /* No Klingons here! */
             return Ok(());
@@ -370,7 +426,7 @@ impl TheGame {
     } /* End checkforhits */
 
     /// Do long-range scan
-    fn l_range_scan<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
+    fn l_range_scan<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
         let i = 2;
         if self.d[i] > 0 {
             // Long-range scan inoperative
@@ -385,13 +441,15 @@ impl TheGame {
                 write!(sout, "   ")?;
                 sout.flush()?;
                 if (i < 0) || (i > 7) || (j < 0) || (j > 7) {
+                    sout.set_color(ColorSpec::new().set_dimmed(true))?;
                     write!(sout, "***")?;
                     sout.flush()?;
+                    sout.reset()?;
                 } else {
                     let quadrant = Quadrant::new(i as i32, j as i32);
                     // let value = self.quad[quadrant] = value;
                     self.quad[quadrant].show();
-                    let es = self.qstr(i as i32, j as i32);
+                    let es = self.qstr(i as i32, j as i32, self.is_current_quadrant(i, j));
                     write!(sout, "{}", es)?;
                     sout.flush()?;
                 }
@@ -402,7 +460,7 @@ impl TheGame {
     } /* End lrscan */
 
     /// Do galactic records
-    fn galactic_records<W: Write>(&self, sout: &mut W) -> StResult<()> {
+    fn galactic_records<W: WriteColor>(&self, sout: &mut W) -> StResult<()> {
         let i = 5;
         if self.d[i] > 0 {
             // Galactic records inoperative
@@ -416,10 +474,12 @@ impl TheGame {
                 sout.flush()?;
                 let quadrant = Quadrant::new(i, j);
                 if self.quad[quadrant].is_hidden() {
+                    sout.set_color(ColorSpec::new().set_dimmed(true))?;
                     write!(sout, "***")?;
                     sout.flush()?;
+                    sout.reset()?;
                 } else {
-                    let es = self.qstr(i as i32, j as i32);
+                    let es = self.qstr(i as i32, j as i32, self.is_current_quadrant(i, j));
                     write!(sout, "{}", es)?;
                     sout.flush()?;
                 }
@@ -430,7 +490,7 @@ impl TheGame {
     } /* End galrecs */
 
     /// Do short-range scan
-    fn s_range_scan<W: Write>(&mut self, sout: &mut W, a: i32) -> StResult<()> {
+    fn s_range_scan<W: WriteColor>(&mut self, sout: &mut W, a: i32) -> StResult<()> {
         self.check_condition(); //?
         if a == 0
         /* Initial entry into quadrant */
@@ -462,7 +522,10 @@ impl TheGame {
                     writeln!(sout, "STARDATE = {}", self.t)?;
                 }
                 2 => {
-                    writeln!(sout, "CONDITION: {}", self.cond)?;
+                    write!(sout, "CONDITION: ")?;
+                    sout.set_color(&self.cond.get_color_spec())?;
+                    writeln!(sout, "{}", self.cond.as_ref())?;
+                    sout.reset()?;
                 }
                 3 => {
                     writeln!(sout, "QUADRANT = {} - {}", self.q1 + 1, self.q2 + 1)?;
@@ -486,7 +549,7 @@ impl TheGame {
     } /* End srscan */
 
     /// Fire phasers
-    fn phasers<R: BufRead, W: Write>(&mut self, sin: &mut R, sout: &mut W) -> StResult<f64> {
+    fn phasers<R: BufRead, W: WriteColor>(&mut self, sin: &mut R, sout: &mut W) -> StResult<f64> {
         let mut x = 0.0;
         let i = 3;
         if self.d[i] > 0 {
@@ -535,7 +598,7 @@ impl TheGame {
     } /* End phasers */
 
     /// Do the path for warp or torpedo
-    fn do_path<W: Write>(&mut self, sout: &mut W, a: Command, n: f64) -> StResult<()> {
+    fn do_path<W: WriteColor>(&mut self, sout: &mut W, a: Command, n: f64) -> StResult<()> {
         let mut y1 = self.s1 as f64 + 0.5;
         let mut x1 = self.s2 as f64 + 0.5;
         let mut y3 = (self.c - 1.0) as f64 * FRAC_PI_4; // `FRAC_PI_4` _was_ `0.785398`
@@ -698,7 +761,7 @@ impl TheGame {
         Ok(())
     } /* End dopath */
 
-    pub fn do_warp<R: BufRead, W: Write>(
+    pub fn do_warp<R: BufRead, W: WriteColor>(
         &mut self,
         sin: &mut R,
         sout: &mut W,
@@ -817,7 +880,7 @@ impl TheGame {
         Ok(())
     }
 
-    fn do_torpedoes<R: BufRead, W: Write>(
+    fn do_torpedoes<R: BufRead, W: WriteColor>(
         &mut self,
         sin: &mut R,
         sout: &mut W,
@@ -878,7 +941,7 @@ impl TheGame {
         self.game_defs.s9
     }
 
-    pub fn play<R: BufRead, W: Write>(&mut self, sin: &mut R, sout: &mut W) -> StResult<()> {
+    pub fn play<R: BufRead, W: WriteColor>(&mut self, sin: &mut R, sout: &mut W) -> StResult<()> {
         let mut gamecomp = GameState::InProgress;
         let mut moved: bool = false;
         let mut a = self.saved_command;

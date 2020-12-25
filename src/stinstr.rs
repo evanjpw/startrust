@@ -5,15 +5,16 @@
 use crate::interaction::{clrscr, yesno};
 use crate::StResult;
 use std::io::{BufRead, Write};
+use termcolor::WriteColor;
 
 /// Show program title
-pub fn show_title<W: Write>(sout: &mut W) -> StResult<()> {
+pub fn show_title<W: WriteColor>(sout: &mut W) -> StResult<()> {
     clrscr(sout)?;
     writeln!(sout, "STAR TREK!!")?;
     writeln!(sout, "===========\n").map_err(|e| e.into()) // The extra '\n' is intentional
 } /* End title */
 
-pub fn show_instructions<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
+pub fn show_instructions<R: BufRead, W: WriteColor>(sin: &mut R, sout: &mut W) -> StResult<()> {
     write!(sout, "DO YOU NEED INSTRUCTIONS Y/N)? ")?;
     sout.flush()?;
     loop {

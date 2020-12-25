@@ -15,12 +15,29 @@ extern crate startrust;
 #[allow(unused_imports)]
 use std::io::{stdin, stdout, BufRead, Write};
 
+use atty;
+use clap::{crate_authors, crate_description, crate_version, Clap};
 use log::info;
+use termcolor::{ColorChoice, StandardStream, WriteColor};
 
 use startrust::{
     clrscr, show_instructions, show_title, yesno, StResult, StarTrustError, TheGame, TheGameDefs,
     TheGameDefsBuilder,
 };
+
+#[derive(Clap)]
+#[clap(version = crate_version!(), author = crate_authors!(), about = crate_description!())]
+struct GetOpts {
+    /// Don't use color in output
+    #[clap(long)]
+    no_color: bool,
+    /// Try to force color in output
+    #[clap(long)]
+    force_color: bool,
+    /// Run with debug output
+    #[clap(short, long)]
+    debug: bool,
+}
 
 fn get_game_config() -> StResult<TheGameDefs> {
     let the_game_defs = TheGameDefsBuilder::default()
@@ -32,8 +49,17 @@ fn get_game_config() -> StResult<TheGameDefs> {
 fn main() -> Result<(), StarTrustError> {
     pretty_env_logger::init();
 
+    let get_opts = GetOpts::parse();
+
     let sin = stdin();
-    let mut sout = stdout();
+    let choice = if !atty::is(atty::Stream::Stdout) || get_opts.no_color {
+        ColorChoice::Never
+    } else if get_opts.force_color {
+        ColorChoice::Always
+    } else {
+        ColorChoice::Auto
+    };
+    let mut sout = StandardStream::stdout(choice);
     show_title(&mut sout)?;
     show_instructions(&mut sin.lock(), &mut sout)?;
 
@@ -52,8 +78,10 @@ fn main() -> Result<(), StarTrustError> {
 
         let _ = write!(sout, "\nTRY AGAIN? ")?;
         sout.flush()?;
-        let ans = yesno(&mut sin.lock())?; // &mut sout
+        let ans = yesno(&mut sin.lock())?;
         if ans != 'Y' {
+            sout.reset()?;
+            writeln!(sout)?;
             return Ok(());
         }
     }
