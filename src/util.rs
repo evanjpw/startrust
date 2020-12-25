@@ -46,9 +46,9 @@ pub fn rand_init() -> f64 {
 } /* End randinit */
 
 /// Get fractional part of (double) real number
-fn frac(r: f64) -> f64 {
-    r.fract()
-} /* End frac */
+// fn frac(r: f64) -> f64 {
+//     r.fract()
+// } /* End frac */
 
 /// Generate a new pseudo-random number
 pub fn rnd() -> f64 {

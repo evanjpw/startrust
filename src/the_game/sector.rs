@@ -1,6 +1,7 @@
 use std::ops::{Index, IndexMut};
 
-use crate::util::{find_slot, set_random_x_y};
+// use crate::util::{find_slot, set_random_x_y};
+#[allow(unused_imports)]
 use crate::TheGame;
 use num_enum::{FromPrimitive, IntoPrimitive};
 

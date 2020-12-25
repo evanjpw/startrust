@@ -164,7 +164,7 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
         s = n - (n / 10) * 10;
         k = n / 100;
     }
-    let b: i32 = (n / 10 - (k * 10));
+    let b: i32 = n / 10 - (k * 10);
     let (x, y) = set_random_x_y();
     let current_sector = Sector::new(x, y);
     the_game.set_current_sector(current_sector);

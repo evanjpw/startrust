@@ -12,7 +12,7 @@ pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
 use crate::the_game::quadrant::{setup_quadrant, Quadrant, QuadrantContents, QuadrantMap};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
-use crate::util::{find_slot, fnd, gt, lt, rand_init, rnd, set_random_x_y};
+use crate::util::{fnd, gt, lt, rand_init, rnd, set_random_x_y}; // find_slot,
 use crate::{yesno, StResult, StarTrustError};
 use std::f64::consts::FRAC_PI_4;
 
@@ -248,6 +248,7 @@ impl TheGame {
         Quadrant::new(self.q1, self.q2)
     }
 
+    #[allow(dead_code)]
     fn set_current_quadrant(&mut self, quadrant: Quadrant) {
         self.set_current_quadrant_from_coords(quadrant.x(), quadrant.y());
     }
@@ -706,10 +707,10 @@ impl TheGame {
         moved: &mut bool,
     ) -> StResult<()> {
         let mut w = 0f64;
-        let mut c = self.c;
+        let mut c; // = self.c
         loop {
             loop {
-                c = getcourse(sin, sout, self)?;
+                c = getcourse(sin, sout)?; // self
                 self.c = c;
                 if c < 9.0 {
                     break;
@@ -806,7 +807,7 @@ impl TheGame {
         }
         self.do_path(sout, *a, n)?;
         *a = self.saved_command;
-        let i = n;
+        // let i = n;
         if self.e <= 0.0 {
             // Ran out of energy
             *gamecomp = (-1).into();
@@ -842,7 +843,7 @@ impl TheGame {
             write!(sout, "TORPEDO ")?;
             sout.flush()?;
 
-            self.c = getcourse(sin, sout, self)?;
+            self.c = getcourse(sin, sout)?; // self
         }
         if self.c < 1.0 {
             // Abort firing of torpedo
@@ -853,7 +854,7 @@ impl TheGame {
         sout.flush()?;
         self.do_path(sout, *a, n)?;
         *a = self.saved_command;
-        let i = n;
+        // let i = n;
         if self.e <= 0.0 {
             /* Ran out of energy */
             *gamecomp = (-1).into();
@@ -915,7 +916,7 @@ impl TheGame {
                     if int_a == -99 {
                         write!(sout, "\nARE YOU SURE YOU WANT TO QUIT? ")?;
                         sout.flush()?;
-                        let ans = yesno(sin, sout)?;
+                        let ans = yesno(sin)?; // sout
                         if ans == 'Y' {
                             gamecomp = (-99).into();
                             break; /* Break out of command loop */

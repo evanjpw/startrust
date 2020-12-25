@@ -2,7 +2,6 @@
 //!
 //! Write the INSTRUCTIONS to the user
 
-use crate::error::StarTrustError;
 use crate::interaction::{clrscr, yesno};
 use crate::StResult;
 use std::io::{BufRead, Write};
@@ -18,7 +17,7 @@ pub fn show_instructions<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StR
     write!(sout, "DO YOU NEED INSTRUCTIONS Y/N)? ")?;
     sout.flush()?;
     loop {
-        let ans = yesno(sin, sout)?;
+        let ans = yesno(sin)?; // sout
         if ans != 'Y' {
             return Ok(());
         }

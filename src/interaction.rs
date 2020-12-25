@@ -1,5 +1,7 @@
 use crate::error::StarTrustError;
+#[allow(unused_imports)]
 use crate::{StResult, TheGame};
+#[allow(unused_imports)]
 use beep::beep as sound;
 use dim::{dimensions::Frequency, si::Hertz};
 use log::{debug, info};
@@ -51,12 +53,12 @@ fn nosound() {
 /// specified duration in milliseconds.
 /// Includes:     dos.h
 ///
-fn speaker<HZ, N>(freq: HZ, dur: Duration)
+fn speaker<HZ, N>(_freq: HZ, dur: Duration)
 where
     HZ: Frequency + Into<Hertz<N>>,
     N: Num + ToPrimitive,
 {
-    //sound(freq);
+    //sound(_freq);
     thread::sleep(dur);
     nosound();
 } // End speaker
@@ -66,6 +68,7 @@ where
 /// Argument(s):  none
 /// Description:  Clears the keyboard buffer.
 /// Includes:     conio.h
+#[allow(dead_code)]
 fn clearkeyboard<R: BufRead>(_stdin: &mut R) -> StResult<()> {
     // was: `while (kbhit())`
     loop {
@@ -82,6 +85,7 @@ fn clearkeyboard<R: BufRead>(_stdin: &mut R) -> StResult<()> {
 /// Description:  Gets a line of text from the stream and strips the
 /// non-printing characters at the end of the line
 /// Includes:     stdio.h
+#[allow(dead_code)]
 pub fn fgetline<R: BufRead>(_stream: &mut R) -> Result<String, StarTrustError> {
     let mut buff = String::new();
     let j = _stream.read_line(&mut buff)?;
@@ -104,7 +108,8 @@ pub fn fgetline<R: BufRead>(_stream: &mut R) -> Result<String, StarTrustError> {
   //char *buff,int blen,FILE *stream
 
 /// Get Y or N from user and place result in ans
-pub fn yesno<R: BufRead, W: Write>(sin: &mut R, stdout: &mut W) -> Result<char, StarTrustError> {
+pub fn yesno<R: BufRead>(sin: &mut R, //, W: Write stdout: &mut W
+) -> Result<char, StarTrustError> {
     loop {
         if let Some(c) = getch(sin)? {
             let c = c.to_uppercase().next().unwrap_or('\0');
@@ -118,6 +123,7 @@ pub fn yesno<R: BufRead, W: Write>(sin: &mut R, stdout: &mut W) -> Result<char, 
 } /* End yesno */
 
 /// Get keypress to continue
+#[allow(dead_code)]
 pub fn keytocont<R: BufRead, W: Write>(sin: &mut R, sout: &mut W) -> StResult<()> {
     write!(sout, "\nPRESS A KEY TO CONTINUE ... ")?;
     sout.flush()?;
@@ -223,6 +229,7 @@ pub enum InputValue {
 }
 
 impl InputValue {
+    #[allow(dead_code)]
     fn as_integer(&self) -> i32 {
         match self {
             InputValue::InputString(_) => 0,
@@ -320,21 +327,19 @@ pub fn getinp<R: BufRead, W: Write>(
                 ESCKEY => {
                     /*  Perform escape (abort input).  */
                     let mut l = buff.len() as i32;
-                    if (l > 0) {
+                    if l > 0 {
                         ctlbkspc(sout, &mut l)?;
                     }
                 }
                 CTLBKSPCKEY => {
                     /*  Perform Ctrl-backspace.  */
                     let mut l = buff.len() as i32;
-                    if (l > 0) {
+                    if l > 0 {
                         ctlbkspc(sout, &mut l)?;
                     } else {
                         buzz();
                     }
                 }
-                /*
-                 */
                 ENTERKEY => { /*  Carriage return -- don't do anything  */ }
                 _ => {
                     // Possibly valid ASCII character
@@ -375,7 +380,7 @@ pub fn getinp<R: BufRead, W: Write>(
 pub fn getcourse<R: BufRead, W: Write>(
     sin: &mut R,
     sout: &mut W,
-    the_game: &TheGame,
+    // the_game: &TheGame,
 ) -> StResult<f64> {
     write!(sout, "COURSE (1-8.99)? ")?;
     sout.flush()?;

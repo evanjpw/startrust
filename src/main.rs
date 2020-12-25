@@ -52,7 +52,7 @@ fn main() -> Result<(), StarTrustError> {
 
         let _ = write!(sout, "\nTRY AGAIN? ")?;
         sout.flush()?;
-        let ans = yesno(&mut sin.lock(), &mut sout)?;
+        let ans = yesno(&mut sin.lock())?; // &mut sout
         if ans != 'Y' {
             return Ok(());
         }
