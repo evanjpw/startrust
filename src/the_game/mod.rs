@@ -149,8 +149,10 @@ impl TheGame {
     pub fn init<W: Write>(&mut self, sout: &mut W) -> StResult<()> {
         randinit();
         self.fixdamage();
-        let (x, y) = setrndxy();
+        let (mut x, mut y) = setrndxy();
         self.set_current_sector_from_coords(x, y);
+        x = 8;
+        y = 1;
         let mut b9 = self.b9;
 
         let the_game_defs = self.game_defs;
