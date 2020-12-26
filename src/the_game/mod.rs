@@ -7,7 +7,7 @@ use std::io::{BufRead, Write};
 use log::{debug, error};
 use num_enum::{FromPrimitive, IntoPrimitive};
 use strum_macros::{AsRefStr, EnumString};
-//Static&'static str"".""//""""""""
+
 use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::error::StarTrustError::GameStateError;
@@ -395,11 +395,14 @@ impl TheGame {
     }
 
     /// Set up string for lr scan or galactic records
-    fn qstr(&self, i: i32, j: i32, is_current: bool) -> String {
+    fn qstr<W: WriteColor>(&self, sout: &mut W, i: i32, j: i32, is_current: bool) -> StResult<()> {
         let quadrant = Quadrant::new(i, j);
         // The printf format string was "%3.3i", which has a width of 3 digits and has leading 0s.
         // I _think_.
-        format!("{:03}", self.quad[quadrant].as_i32())
+        let value = self.quad[quadrant];
+        let emphasize = is_current;
+        value.draw(sout, emphasize)?;
+        Ok(())
     } /* End qstr */
 
     /// Check for hits from Klingons
@@ -447,11 +450,8 @@ impl TheGame {
                     sout.reset()?;
                 } else {
                     let quadrant = Quadrant::new(i as i32, j as i32);
-                    // let value = self.quad[quadrant] = value;
                     self.quad[quadrant].show();
-                    let es = self.qstr(i as i32, j as i32, self.is_current_quadrant(i, j));
-                    write!(sout, "{}", es)?;
-                    sout.flush()?;
+                    self.qstr(sout, i as i32, j as i32, self.is_current_quadrant(i, j))?;
                 }
             }
             writeln!(sout)?;
@@ -472,17 +472,7 @@ impl TheGame {
             for j in 0..8 {
                 write!(sout, "  ")?;
                 sout.flush()?;
-                let quadrant = Quadrant::new(i, j);
-                if self.quad[quadrant].is_hidden() {
-                    sout.set_color(ColorSpec::new().set_dimmed(true))?;
-                    write!(sout, "***")?;
-                    sout.flush()?;
-                    sout.reset()?;
-                } else {
-                    let es = self.qstr(i as i32, j as i32, self.is_current_quadrant(i, j));
-                    write!(sout, "{}", es)?;
-                    sout.flush()?;
-                }
+                self.qstr(sout, i as i32, j as i32, self.is_current_quadrant(i, j))?;
             }
             writeln!(sout)?;
         }

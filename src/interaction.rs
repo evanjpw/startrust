@@ -10,7 +10,7 @@ use num_traits::{Num, ToPrimitive};
 use std::io::{BufRead, Read, Write};
 use std::thread;
 use std::time::Duration;
-use termcolor::WriteColor;
+use termcolor::{Color, ColorSpec, WriteColor};
 
 const ESCKEY: u8 = 27; /* 'ESC' key code */
 const ENTERKEY: u8 = 10; /* 'Enter' key code *///3
@@ -410,3 +410,22 @@ pub fn getwarp<R: BufRead, W: WriteColor>(sin: &mut R, sout: &mut W) -> StResult
         0.0
     })
 } /* End getwarp */
+
+/// Draw one number in one color
+pub fn draw_number_in_color<W: WriteColor>(
+    sout: &mut W,
+    e: i32,
+    color: Color,
+    bold: bool,
+) -> StResult<()> {
+    let mut color_spec = ColorSpec::new();
+    sout.set_color(
+        color_spec
+            .set_fg(if e != 0 { Some(color) } else { None })
+            .set_bold(bold)
+            .set_intense(bold),
+    )?;
+    write!(sout, "{}", e)?;
+    sout.reset()?;
+    Ok(())
+}

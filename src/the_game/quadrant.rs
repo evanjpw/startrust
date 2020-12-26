@@ -1,9 +1,11 @@
 use std::ops::{Index, IndexMut};
 
+use crate::interaction::draw_number_in_color;
 use crate::the_game::{Sector, SectorContents};
 use crate::util::{find_slot, set_random_x_y};
-use crate::TheGame;
+use crate::{StResult, TheGame};
 use std::fmt::{Display, Formatter};
+use termcolor::{Color, ColorSpec, WriteColor};
 // use log::{debug};
 
 #[derive(Copy, Clone, Debug)]
@@ -64,6 +66,21 @@ impl QuadrantContents {
     pub fn decrement_klingons(&mut self) {
         self.klingons -= 1;
         assert!(self.klingons >= 0)
+    }
+
+    pub fn draw<W: WriteColor>(&self, sout: &mut W, bold: bool) -> StResult<()> {
+        if !self.hidden {
+            draw_number_in_color(sout, self.klingons, Color::Magenta, bold)?;
+            draw_number_in_color(sout, self.starbases, Color::Cyan, bold)?;
+            draw_number_in_color(sout, self.stars, Color::Yellow, bold)?;
+            sout.flush()?;
+        } else {
+            sout.set_color(ColorSpec::new().set_dimmed(true))?;
+            write!(sout, "***")?;
+            sout.flush()?;
+            sout.reset()?;
+        }
+        Ok(())
     }
 }
 
