@@ -468,6 +468,7 @@ dependencies = [
  "clap",
  "derive_builder",
  "dimensioned",
+ "env_logger",
  "log",
  "num-traits",
  "num_enum",

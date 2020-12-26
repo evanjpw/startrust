@@ -25,6 +25,7 @@ atty = "0.2.14"
 clap = "3.0.0-beta.2"
 strum = "0.20"
 strum_macros = "0.20"
+env_logger = "0.7.1"  # Intentionally not current because `pretty_env_logger` isn't
 
 [dependencies.num-traits]
 version = "0.2"

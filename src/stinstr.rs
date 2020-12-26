@@ -4,7 +4,7 @@
 
 use crate::interaction::{clrscr, yesno};
 use crate::StResult;
-use std::io::{BufRead, Write};
+use std::io::BufRead;
 use termcolor::WriteColor;
 
 /// Show program title

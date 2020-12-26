@@ -2,6 +2,7 @@
 
 use std::convert::AsRef;
 use std::f64::consts::FRAC_PI_4;
+#[allow(unused_imports)]
 use std::io::{BufRead, Write};
 
 use log::{debug, error};
@@ -102,10 +103,10 @@ pub struct TheGame {
     /// Current Photon Torpedoes
     p: i32,
     /// Current StarDate
-    t: StarDate,
+    current_stardate: StarDate,
     years: i32,
     /// Total remaining Klingons
-    k9: i32,
+    total_klingons: i32,
     /// The Enterprise's x position within the Quadrant
     s1: i32,
     /// The Enterprise's y position within the Quadrant
@@ -115,13 +116,13 @@ pub struct TheGame {
     /// The y position of the current Quadrant
     q2: i32,
     /// The Damage Array
-    d: Vec<i32>,
+    damage: Vec<i32>,
     k0: i32,
     k1: Vec<i32>,
     k2: Vec<i32>,
     k3: Vec<f64>,
     /// The number of Starbases
-    b9: i32,
+    total_starbases: i32,
     /// New Quadrant
     newquad: bool,
     k: i32,
@@ -138,7 +139,7 @@ pub struct TheGame {
     cond: Condition,
     saved_command: Command,
     s: i32,
-    t9: StarDate,
+    ending_stardate: StarDate,
 }
 impl TheGame {
     pub fn new(the_game_defs: &TheGameDefs) -> Self {
@@ -150,22 +151,22 @@ impl TheGame {
         Self {
             e: the_game_defs.e0,
             p: the_game_defs.p0,
-            t: the_game_defs.t0,
+            current_stardate: the_game_defs.t0,
             years: (the_game_defs.t9 - the_game_defs.t0) as i32,
-            k9: the_game_defs.k9,
+            total_klingons: the_game_defs.k9,
             sect: SectorMap::new(),
             quad: QuadrantMap::new(),
             s1: 0,
             s2: 0,
             q1: 0,
             q2: 0,
-            d: vec![0i32; 6],
+            damage: vec![0i32; 6],
             k0: 0,
             k1: vec![0i32; 8],
             k2: vec![0i32; 8],
             k3: vec![0.0; 8],
             game_defs: *the_game_defs,
-            b9,
+            total_starbases: b9,
             newquad: false,
             k: 0,
             c,
@@ -174,7 +175,7 @@ impl TheGame {
             cond: Condition::Undefined,
             saved_command: Command::Undefined, // the global version of `a`
             s: 0,
-            t9: the_game_defs.t9,
+            ending_stardate: the_game_defs.t9,
         }
     }
     /*
@@ -186,7 +187,7 @@ impl TheGame {
     /// Repair anything that is down
     pub fn fix_damage(&mut self) {
         for i in 0..6 {
-            self.d[i] = 0;
+            self.damage[i] = 0;
         }
     } /* End fixdamage */
 
@@ -198,12 +199,12 @@ impl TheGame {
         self.set_current_quadrant_from_coords(x, y);
         x = 8;
         y = 1;
-        let mut b9 = self.b9;
+        let mut b9 = self.total_starbases;
 
         let the_game_defs = self.game_defs;
         let mut t9 = the_game_defs.t9;
         let t0 = the_game_defs.t0;
-        let mut k9 = self.k9 as i32;
+        let mut k9 = self.total_klingons as i32;
         let x1 = self.game_defs.x1;
         let x2 = self.game_defs.x2;
         let y1 = self.game_defs.y1;
@@ -256,15 +257,15 @@ impl TheGame {
         }
 
         self.k = k;
-        self.k9 = k9 as i32;
+        self.total_klingons = k9 as i32;
         self.k0 = k9 as i32;
-        self.b9 = b9;
+        self.total_starbases = b9;
         self.years = (t9 - t0) as i32;
-        self.t9 = t9;
+        self.ending_stardate = t9;
         writeln!(
             sout,
             "OBJECTIVE: DESTROY {} KLINGON BATTLE CRUISERS IN {} YEARS.",
-            self.k9, self.years
+            self.total_klingons, self.years
         )?;
         writeln!(sout, " THE NUMBER OF STARBASES IS {}.\n", b9)?;
 
@@ -273,7 +274,7 @@ impl TheGame {
 
     pub fn increment_year(&mut self) {
         self.years -= 1;
-        self.t += 1i32;
+        self.current_stardate += 1i32;
     }
 
     fn current_sector(&self) -> Sector {
@@ -309,7 +310,7 @@ impl TheGame {
 
     /// Display current star date
     pub fn show_stardate<W: WriteColor>(&self, sout: &mut W) -> StResult<()> {
-        write!(sout, "\nIT IS STARDATE {}.\n", self.t)?;
+        write!(sout, "\nIT IS STARDATE {}.\n", self.current_stardate)?;
         sout.flush().map_err(|e| {
             let e: StarTrustError = e.into();
             e
@@ -375,7 +376,7 @@ impl TheGame {
 
     /// Show estimated time for repair
     fn show_est_repair_time<W: WriteColor>(&self, sout: &mut W, i: usize) -> StResult<()> {
-        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.d[i]).map_err(|e| {
+        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.damage[i]).map_err(|e| {
             let e = e.into();
             e
         })
@@ -431,7 +432,7 @@ impl TheGame {
     /// Do long-range scan
     fn l_range_scan<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
         let i = 2;
-        if self.d[i] > 0 {
+        if self.damage[i] > 0 {
             // Long-range scan inoperative
             self.show_damage(sout, i)?;
             return Ok(());
@@ -462,12 +463,16 @@ impl TheGame {
     /// Do galactic records
     fn galactic_records<W: WriteColor>(&self, sout: &mut W) -> StResult<()> {
         let i = 5;
-        if self.d[i] > 0 {
+        if self.damage[i] > 0 {
             // Galactic records inoperative
             self.show_damage(sout, i)?;
             return Ok(());
         }
-        writeln!(sout, "CUMULATIVE GALACTIC MAP FOR STARDATE {}", self.t)?;
+        writeln!(
+            sout,
+            "CUMULATIVE GALACTIC MAP FOR STARDATE {}",
+            self.current_stardate
+        )?;
         for i in 0..8 {
             for j in 0..8 {
                 write!(sout, "  ")?;
@@ -492,7 +497,7 @@ impl TheGame {
             }
         }
         let i = 1;
-        if self.d[i] > 0 {
+        if self.damage[i] > 0 {
             // Short-range scan inoperative
             self.show_damage(sout, i)?;
             return Ok(());
@@ -506,10 +511,14 @@ impl TheGame {
             sout.flush()?;
             match i {
                 0 => {
-                    writeln!(sout, "YEARS = {}", self.game_defs.t9 - self.t)?;
+                    writeln!(
+                        sout,
+                        "YEARS = {}",
+                        self.game_defs.t9 - self.current_stardate
+                    )?;
                 }
                 1 => {
-                    writeln!(sout, "STARDATE = {}", self.t)?;
+                    writeln!(sout, "STARDATE = {}", self.current_stardate)?;
                 }
                 2 => {
                     write!(sout, "CONDITION: ")?;
@@ -530,7 +539,7 @@ impl TheGame {
                     writeln!(sout, "{} = {}", DS[4], self.p)?;
                 }
                 7 => {
-                    writeln!(sout, "KLINGONS LEFT = {}", self.k9)?;
+                    writeln!(sout, "KLINGONS LEFT = {}", self.total_klingons)?;
                 }
                 _ => {}
             }
@@ -542,7 +551,7 @@ impl TheGame {
     fn phasers<R: BufRead, W: WriteColor>(&mut self, sin: &mut R, sout: &mut W) -> StResult<f64> {
         let mut x = 0.0;
         let i = 3;
-        if self.d[i] > 0 {
+        if self.damage[i] > 0 {
             // Phasers inoperative
             self.show_damage(sout, i)?;
             return Ok(x);
@@ -576,7 +585,7 @@ impl TheGame {
                 if self.k3[i] <= 0.0 {
                     writeln!(sout, "**KLINGON DESTROYED**")?;
                     self.k -= 1;
-                    self.k9 -= 1;
+                    self.total_klingons -= 1;
                     let sector = Sector::new(self.k1[i], self.k2[i]);
                     self.sect[sector] = 1;
                     let quadrant = self.current_quadrant();
@@ -655,7 +664,7 @@ impl TheGame {
                                 }
                             }
                             self.k -= 1;
-                            self.k9 -= 1;
+                            self.total_klingons -= 1;
                         }
                     }
                     SectorContents::Starbase => {
@@ -777,7 +786,7 @@ impl TheGame {
                         c = 10.0;
                         break;
                     }
-                    if (self.d[0] > 0) && (w > 0.2) {
+                    if (self.damage[0] > 0) && (w > 0.2) {
                         let i = 0;
                         write!(sout, "{} DAMAGED; MAX IS 0.2; ", DS[i])?;
                         sout.flush()?;
@@ -808,40 +817,40 @@ impl TheGame {
             let x = (rnd() * 6.0).floor() as usize;
             if rnd() <= 0.5 {
                 beep();
-                self.d[x] += (6.0 - rnd() * 5.0).floor() as i32;
+                self.damage[x] += (6.0 - rnd() * 5.0).floor() as i32;
                 writeln!(sout, "**SPACE STORM, {} DAMAGED**", DS[x])?;
                 let i = x;
                 self.show_est_repair_time(sout, i)?;
-                self.d[x] += 1;
+                self.damage[x] += 1;
                 delay(100);
                 beep();
             } else {
                 let mut j: i32 = -1;
                 for i in x..6 {
-                    if self.d[i] > 0 {
+                    if self.damage[i] > 0 {
                         j = i as i32;
                         break;
                     }
                 }
                 if j < 0 {
                     for i in 0..x {
-                        if self.d[i] > 0 {
+                        if self.damage[i] > 0 {
                             j = i as i32;
                             break;
                         }
                     }
                 }
                 if j >= 0 {
-                    self.d[j as usize] = 1;
+                    self.damage[j as usize] = 1;
                     writeln!(sout, "**SPOCK USED A NEW REPAIR TECHNIQUE**")?;
                 }
             }
         }
         for i in 0..6 {
-            if self.d[i] != 0 {
-                self.d[i] -= 1;
-                if self.d[i] <= 0 {
-                    self.d[i] = 0;
+            if self.damage[i] != 0 {
+                self.damage[i] -= 1;
+                if self.damage[i] <= 0 {
+                    self.damage[i] = 0;
                     writeln!(sout, "{} ARE FIXED!", DS[i])?;
                     beep();
                 }
@@ -850,10 +859,10 @@ impl TheGame {
         let n = (w * 8.0).floor();
         self.w = w;
         self.e = self.e - n - n + 0.5;
-        self.t += 1i32;
+        self.current_stardate += 1i32;
         let current_sector = self.current_sector();
         self.sect[current_sector] = 1;
-        if self.t > self.game_defs.t9 {
+        if self.current_stardate > self.game_defs.t9 {
             /* Ran out of time! */
             *gamecomp = (-1).into();
             return Ok(());
@@ -877,7 +886,7 @@ impl TheGame {
         a: &mut Command,
         gamecomp: &mut GameState,
     ) -> StResult<()> {
-        if self.d[4] > 0 {
+        if self.damage[4] > 0 {
             // Torpedoes damaged
             write!(sout, "SPACE CRUD BLOCKING TUBES.  ")?;
             sout.flush()?;
@@ -917,7 +926,7 @@ impl TheGame {
             /* Ran out of energy */
             *gamecomp = (-1).into();
         }
-        if self.k9 < 1 {
+        if self.total_klingons < 1 {
             /* All Klingons destroyed! */
             *gamecomp = 1.into();
         }
@@ -936,10 +945,13 @@ impl TheGame {
         let mut moved: bool = false;
         let mut a = self.saved_command;
 
-        dbg!("Init", gamecomp, moved, a);
+        debug!("Init gamecomp={:?}, moved={}, a={:?}", gamecomp, moved, a);
         self.init(sout)?;
         self.newquad = true;
-        dbg!("Done initing", gamecomp, moved, a, self.newquad);
+        debug!(
+            "Done initing gamecomp={:?}, moved={}, a={:?}, newquad={}",
+            gamecomp, moved, a, self.newquad
+        );
 
         while !gamecomp.is_done() {
             if self.newquad {
@@ -964,7 +976,13 @@ impl TheGame {
                     match ebuff {
                         InputValue::Blank => int_a = 99,
                         InputValue::Esc => int_a = -99,
-                        InputValue::InputString(cmdbuff) => int_a = cmdbuff.parse::<i32>()?,
+                        InputValue::InputString(cmdbuff) => {
+                            if let Ok(cmd) = cmdbuff.parse::<i32>() {
+                                int_a = cmd;
+                            } else {
+                                continue;
+                            }
+                        }
                     }
                     if int_a == -99 {
                         write!(sout, "\nARE YOU SURE YOU WANT TO QUIT? ")?;
@@ -1016,7 +1034,7 @@ impl TheGame {
                                     /* Ran out of energy */
                                     gamecomp = (-1).into();
                                 }
-                                if self.k9 < 1 {
+                                if self.total_klingons < 1 {
                                     /* All Klingons destroyed! */
                                     gamecomp = 1.into();
                                 }
@@ -1058,7 +1076,7 @@ impl TheGame {
         self.show_stardate(sout)?;
         match gamecomp {
             GameState::Won => {
-                let t = self.t;
+                let t = self.current_stardate;
                 let t0 = self.game_defs.t0;
                 let drate: f64 = (t - t0) as f64;
                 let rating: i32 = ((self.k0 as f64 / drate) * 1000.0) as i32;
@@ -1073,7 +1091,7 @@ impl TheGame {
                 )?;
             }
             GameState::Lost => {
-                if self.t > self.game_defs.t9 {
+                if self.current_stardate > self.game_defs.t9 {
                     writeln!(sout, "YOU RAN OUT OF TIME!")?;
                 } else if self.e <= 0.0 {
                     writeln!(sout, "YOU RAN OUT OF ENERGY!")?;
@@ -1086,7 +1104,7 @@ impl TheGame {
                 writeln!(
                     sout,
                     "CONQUERED BY THE REMAINING {} KLINGON CRUISERS!",
-                    self.k9
+                    self.total_klingons
                 )?;
                 writeln!(sout, "YOU ARE DEMOTED TO CABIN BOY!")?;
             }

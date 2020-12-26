@@ -4,23 +4,24 @@ use crate::{StResult, TheGame};
 #[allow(unused_imports)]
 use beep::beep as sound;
 use dim::{dimensions::Frequency, si::Hertz};
+#[allow(unused_imports)]
 use log::{debug, info};
 use num_enum::{FromPrimitive, IntoPrimitive};
 use num_traits::{Num, ToPrimitive};
-use std::io::{BufRead, Read, Write};
+use std::io::{BufRead, Read};
 use std::thread;
 use std::time::Duration;
 use termcolor::{Color, ColorSpec, WriteColor};
 
-const ESCKEY: u8 = 27; /* 'ESC' key code */
-const ENTERKEY: u8 = 10; /* 'Enter' key code *///3
-const MINUS_ENTERKEY: u8 = ((-(ENTERKEY as i32)) & 0xFF) as u8;
-const NULLC: u8 = '\0' as u8; /* Null character */
-const F1KEY: u8 = (-59 & 0xFF) as u8; /* 'F1' key code (following NULL) */
-const BKSPCKEY: u8 = 8; /* 'Backspace' key code */
+const ESC_KEY: u8 = 27; /* 'ESC' key code */
+const ENTER_KEY: u8 = 10; /* 'Enter' key code *///3
+const MINUS_ENTER_KEY: u8 = ((-(ENTER_KEY as i32)) & 0xFF) as u8;
+const NULL_C: u8 = '\0' as u8; /* Null character */
+const F1_KEY: u8 = (-59 & 0xFF) as u8; /* 'F1' key code (following NULL) */
+const BKSPC_KEY: u8 = 8; /* 'Backspace' key code */
 const SPC: u8 = 32; /* Space character */
 const ASCHI: u8 = 126; /* Maximum input character to allow */
-const CTLBKSPCKEY: u8 = 127; /* 'Ctrl-backspace' key code */
+const CTL_BKSPC_KEY: u8 = 127; /* 'Ctrl-backspace' key code */
 
 /// Wait for the provided number of milliseconds
 pub fn delay(ms: usize) {
@@ -38,8 +39,13 @@ fn getch<R: Read>(sin: &mut R) -> StResult<Option<char>> {
     getbyte(sin).map(|option_b| option_b.map(|b| b as char))
 }
 
+fn is_ansi() -> bool {
+    true
+}
+
 pub fn clrscr<W: WriteColor>(sout: &mut W) -> StResult<()> {
-    write!(sout, "\x0c")?;
+    let clear_sequence = if is_ansi() { "\x1b[2J\x1b[H" } else { "\x0c" };
+    write!(sout, "{}", clear_sequence)?;
     sout.flush().map_err(|e| e.into())
 }
 
@@ -200,7 +206,7 @@ fn charokay(cc: u8, mode: InputMode) -> bool {
 fn ctlbkspc<W: WriteColor>(sout: &mut W, bl: &mut i32) -> StResult<()> {
     if *bl > 0 {
         for _ in 0..(*bl) {
-            write!(sout, "{} {}", BKSPCKEY as char, BKSPCKEY as char)?;
+            write!(sout, "{} {}", BKSPC_KEY as char, BKSPC_KEY as char)?;
             sout.flush()?;
         }
         *bl = 0;
@@ -276,14 +282,14 @@ pub fn getinp<R: BufRead, W: WriteColor>(
     let md: i32 = mode.into();
     let mut cc = 0;
     let mut buff: Vec<u8> = Vec::new();
-    while (cc != ENTERKEY) && (cc != ESCKEY) && (cc != MINUS_ENTERKEY) {
-        info!("cc = {} ({})", cc, cc as char);
+    while (cc != ENTER_KEY) && (cc != ESC_KEY) && (cc != MINUS_ENTER_KEY) {
+        debug!("cc = {} ({})", cc, cc as char);
         if let Some(the_char) = getch(sin)? {
             cc = the_char as u8;
         } else {
             continue;
         }
-        if cc == NULLC
+        if cc == NULL_C
         /*  Function key hit.  */
         {
             if let Some(n_cc) = getch(sin)? {
@@ -291,13 +297,13 @@ pub fn getinp<R: BufRead, W: WriteColor>(
                 let mut l = buff.len() as i32;
                 if md == 2.into() {
                     match n_cc {
-                        F1KEY => {
+                        F1_KEY => {
                             /*  F1;  Help - same as blank CR  */
                             if l > 0 {
                                 ctlbkspc(sout, &mut l)?;
                                 buff.clear()
                             }
-                            cc = ENTERKEY;
+                            cc = ENTER_KEY;
                         }
                         _ => buzz(),
                     }
@@ -307,16 +313,16 @@ pub fn getinp<R: BufRead, W: WriteColor>(
             } else {
                 buzz();
             }
-        } else if (cc < BKSPCKEY)
-            || ((cc > BKSPCKEY) && (cc < ENTERKEY))
-            || ((cc > ENTERKEY) && (cc < ESCKEY))
-            || ((cc > ESCKEY) && (cc < SPC))
+        } else if (cc < BKSPC_KEY)
+            || ((cc > BKSPC_KEY) && (cc < ENTER_KEY))
+            || ((cc > ENTER_KEY) && (cc < ESC_KEY))
+            || ((cc > ESC_KEY) && (cc < SPC))
             || (cc > ASCHI)
         {
             beep();
         } else {
             match cc {
-                BKSPCKEY => {
+                BKSPC_KEY => {
                     /*  Perform destructive backspace.  */
                     if !buff.is_empty() {
                         write!(sout, "{} {}", cc as char, cc as char)?;
@@ -326,14 +332,14 @@ pub fn getinp<R: BufRead, W: WriteColor>(
                         buzz();
                     }
                 }
-                ESCKEY => {
+                ESC_KEY => {
                     /*  Perform escape (abort input).  */
                     let mut l = buff.len() as i32;
                     if l > 0 {
                         ctlbkspc(sout, &mut l)?;
                     }
                 }
-                CTLBKSPCKEY => {
+                CTL_BKSPC_KEY => {
                     /*  Perform Ctrl-backspace.  */
                     let mut l = buff.len() as i32;
                     if l > 0 {
@@ -342,7 +348,7 @@ pub fn getinp<R: BufRead, W: WriteColor>(
                         buzz();
                     }
                 }
-                ENTERKEY => { /*  Carriage return -- don't do anything  */ }
+                ENTER_KEY => { /*  Carriage return -- don't do anything  */ }
                 _ => {
                     // Possibly valid ASCII character
                     if buff.len() < _length {
@@ -366,7 +372,7 @@ pub fn getinp<R: BufRead, W: WriteColor>(
             }
         }
     }
-    Ok(if cc == ESCKEY {
+    Ok(if cc == ESC_KEY {
         // return -1;
         InputValue::Esc
     } else if buff.is_empty() {

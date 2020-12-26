@@ -4,9 +4,9 @@ use crate::interaction::draw_number_in_color;
 use crate::the_game::{Sector, SectorContents};
 use crate::util::{find_slot, set_random_x_y};
 use crate::{StResult, TheGame};
+use log::debug;
 use std::fmt::{Display, Formatter};
 use termcolor::{Color, ColorSpec, WriteColor};
-// use log::{debug};
 
 #[derive(Copy, Clone, Debug)]
 pub struct QuadrantContents {
@@ -59,6 +59,7 @@ impl QuadrantContents {
         self.hidden = false;
     }
 
+    #[allow(dead_code)]
     pub fn is_hidden(&self) -> bool {
         self.hidden
     }
@@ -91,18 +92,20 @@ impl Default for QuadrantContents {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct Quadrant(i32, i32);
+pub struct Quadrant(i32, i32, bool);
 
 // TODO: Maybe allow invalid quadrants?
 impl Quadrant {
     pub(crate) fn new(x: i32, y: i32) -> Self {
         if x > 7 || y > 7 {
-            panic!(
+            debug!(
                 "Could not create quadrant ({}, {}), value out of range",
                 x, y
-            )
+            );
+            Self(0, 0, false)
+        } else {
+            Self(x, y, true)
         }
-        Self(x, y)
     }
 
     fn values(&self) -> (i32, i32) {
@@ -112,7 +115,7 @@ impl Quadrant {
     pub(crate) fn is_in_range(&self) -> bool {
         // Original definition: `(q1<0)||(q1>7)||(q2<0)||(q2>7)`
         // This quadrant can never be out of range, so it's always true
-        true
+        self.2
     }
 
     pub(crate) fn x(&self) -> i32 {

@@ -12,12 +12,15 @@
 
 extern crate startrust;
 
-#[allow(unused_imports)]
-use std::io::{stdin, stdout, BufRead, Write};
+// let env = Env::default(); //from_env(Env::default()::pretty_env_logger    let
+//    if let Some(s) = env.get_filter() {        else{"warn"}
+// if let Some(s) = env.get_writestyle() {// use env_logger::Env;
+//     builder.parse_write_style&s // }default_orstdout, BufRead, ""
+use std::io::{stdin, Write};
 
 use atty;
 use clap::{crate_authors, crate_description, crate_version, Clap};
-use log::info;
+use log::{debug, LevelFilter};
 use termcolor::{ColorChoice, StandardStream, WriteColor};
 
 use startrust::{
@@ -46,11 +49,21 @@ fn get_game_config() -> StResult<TheGameDefs> {
     Ok(the_game_defs)
 }
 
+fn init_logger(get_opts: &GetOpts) {
+    let mut builder = pretty_env_logger::formatted_builder();
+    if let Ok(s) = ::std::env::var("RUST_LOG") {
+        builder.parse_filters(&s);
+    }
+    if get_opts.debug {
+        builder.filter_level(LevelFilter::Debug);
+        debug!("Debug is *ON*");
+    }
+    builder.init();
+}
+
 fn main() -> Result<(), StarTrustError> {
-    pretty_env_logger::init();
-
     let get_opts = GetOpts::parse();
-
+    init_logger(&get_opts);
     let sin = stdin();
     let choice = if !atty::is(atty::Stream::Stdout) || get_opts.no_color {
         ColorChoice::Never
@@ -68,8 +81,7 @@ fn main() -> Result<(), StarTrustError> {
     loop {
         let mut the_game = TheGame::new(&the_game_config);
 
-        println!("About to print title");
-        info!("About to print title");
+        debug!("About to print title");
 
         clrscr(&mut sout)?;
         show_title(&mut sout)?;
