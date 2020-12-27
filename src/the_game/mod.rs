@@ -19,6 +19,8 @@ pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
 use crate::util::{fnd, gt, lt, rand_init, rnd, set_random_x_y};
 use crate::{yesno, StResult, StarTrustError};
+use std::str::FromStr;
+use unwrap_infallible::UnwrapInfallible;
 
 mod commands;
 mod config;
@@ -768,10 +770,11 @@ impl TheGame {
         moved: &mut bool,
     ) -> StResult<()> {
         let mut w = 0f64;
-        let mut c; // = self.c
+        let mut c;
+
         loop {
             loop {
-                c = getcourse(sin, sout)?; // self
+                c = getcourse(sin, sout)?;
                 self.c = c;
                 if c < 9.0 {
                     break;
@@ -971,37 +974,12 @@ impl TheGame {
                     sout.flush()?;
                     let ebuff = getinp(sin, sout, 7, 2.into())?;
                     writeln!(sout)?;
-                    let int_a;
                     match ebuff {
-                        InputValue::Blank => int_a = 99,
-                        InputValue::Esc => int_a = -99,
+                        InputValue::Blank => a = Command::Undefined,
+                        InputValue::Esc => a = (-99).into(),
                         InputValue::InputString(cmdbuff) => {
-                            if let Ok(cmd) = cmdbuff.parse::<i32>() {
-                                int_a = cmd;
-                            } else {
-                                continue;
-                            }
+                            a = Command::from_str(cmdbuff.as_str()).unwrap_infallible();
                         }
-                    }
-                    if int_a == -99 {
-                        write!(sout, "\nARE YOU SURE YOU WANT TO QUIT? ")?;
-                        sout.flush()?;
-                        let ans = yesno(sin)?; // sout
-                        if ans == 'Y' {
-                            gamecomp = (-99).into();
-                            break; /* Break out of command loop */
-                        } else {
-                            continue;
-                        } /* Back to top of command loop */
-                    } else if (int_a < 1) || (int_a > 6) {
-                        for i in 0..6 {
-                            writeln!(sout, "  {} = {}", i + 1, DS[i])?;
-                        }
-                        writeln!(sout, "  -99 OR ESC TO QUIT\n")?;
-                        // Back to top of command loop
-                        continue;
-                    } else {
-                        a = int_a.into()
                     }
                     match a {
                         Command::WarpEngines => {
@@ -1052,12 +1030,25 @@ impl TheGame {
                             /* Galactic records */
                             self.galactic_records(sout)?;
                         }
-                        Command::Undefined => {
-                            error!("undefined command in command loop.")
-                        }
                         Command::Quit => {
-                            gamecomp = GameState::Quit;
-                            break;
+                            write!(sout, "\nARE YOU SURE YOU WANT TO QUIT? ")?;
+                            sout.flush()?;
+                            let ans = yesno(sin)?;
+                            if ans == 'Y' {
+                                gamecomp = (-99).into();
+                                break; /* Break out of command loop */
+                            } else {
+                                continue;
+                            } /* Back to top of command loop */
+                        }
+                        Command::Undefined => {
+                            debug!("undefined command in command loop.");
+                            for i in 0..6 {
+                                writeln!(sout, "  {} = {}", i + 1, DS[i])?;
+                            }
+                            writeln!(sout, "  -99 OR ESC TO QUIT\n")?;
+                            // Back to top of command loop
+                            continue;
                         }
                     }
 
@@ -1119,3 +1110,12 @@ impl TheGame {
         Ok(())
     }
 }
+// let int_a;int_let Ok(cmd) = cmdbuff.parse::<i32>()int_cmd; else {}int_99
+// if a == Command::Undefined {
+//     continue;
+// }
+// if a == ().into(){}
+// continue;//     a = int_a.into()//         break; // sout
+// } else if (int_a < 1) || (int_a > 6) {
+// } else {//         gamecomp = GameState::Quit;
+// -99
