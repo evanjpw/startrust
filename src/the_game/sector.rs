@@ -1,9 +1,10 @@
 use std::ops::{Index, IndexMut};
 
+use num_enum::{FromPrimitive, IntoPrimitive};
+
 // use crate::util::{find_slot, set_random_x_y};
 #[allow(unused_imports)]
 use crate::TheGame;
-use num_enum::{FromPrimitive, IntoPrimitive};
 
 // This has to be a byte string not a `str` because Rust worries about UTF-8 (very reasonably)
 const QS: &[u8] = b"U.EKB*";

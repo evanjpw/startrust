@@ -8,7 +8,6 @@ use std::io::{BufRead, Write};
 use log::{debug, error};
 use num_enum::{FromPrimitive, IntoPrimitive};
 use strum_macros::{AsRefStr, EnumString};
-
 use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::error::StarTrustError::GameStateError;

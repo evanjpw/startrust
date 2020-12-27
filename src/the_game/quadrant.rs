@@ -1,12 +1,13 @@
+use std::fmt::{Display, Formatter};
 use std::ops::{Index, IndexMut};
+
+use log::debug;
+use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::interaction::draw_number_in_color;
 use crate::the_game::{Sector, SectorContents};
 use crate::util::{find_slot, set_random_x_y};
 use crate::{StResult, TheGame};
-use log::debug;
-use std::fmt::{Display, Formatter};
-use termcolor::{Color, ColorSpec, WriteColor};
 
 #[derive(Copy, Clone, Debug)]
 pub struct QuadrantContents {

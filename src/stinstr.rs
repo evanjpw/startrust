@@ -2,10 +2,12 @@
 //!
 //! Write the INSTRUCTIONS to the user
 
+use std::io::BufRead;
+
+use termcolor::WriteColor;
+
 use crate::interaction::{clrscr, yesno};
 use crate::StResult;
-use std::io::BufRead;
-use termcolor::WriteColor;
 
 /// Show program title
 pub fn show_title<W: WriteColor>(sout: &mut W) -> StResult<()> {
@@ -18,7 +20,7 @@ pub fn show_instructions<R: BufRead, W: WriteColor>(sin: &mut R, sout: &mut W) -
     write!(sout, "DO YOU NEED INSTRUCTIONS Y/N)? ")?;
     sout.flush()?;
     loop {
-        let ans = yesno(sin)?; // sout
+        let ans = yesno(sin)?;
         if ans != 'Y' {
             return Ok(());
         }

@@ -1,8 +1,9 @@
 //! # startrust::util
 //!
 
-use crate::the_game::{Sector, SectorContents, SectorMap};
 use rand::{thread_rng, Rng};
+
+use crate::the_game::{Sector, SectorContents, SectorMap};
 
 /// Set a random x and y in interval \[0,7\]
 pub fn set_random_x_y() -> (i32, i32) {

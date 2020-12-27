@@ -1,6 +1,7 @@
-use crate::error::StarTrustError;
-#[allow(unused_imports)]
-use crate::{StResult, TheGame};
+use std::io::{BufRead, Read};
+use std::thread;
+use std::time::Duration;
+
 #[allow(unused_imports)]
 use beep::beep as sound;
 use dim::{dimensions::Frequency, si::Hertz};
@@ -8,10 +9,11 @@ use dim::{dimensions::Frequency, si::Hertz};
 use log::{debug, info};
 use num_enum::{FromPrimitive, IntoPrimitive};
 use num_traits::{Num, ToPrimitive};
-use std::io::{BufRead, Read};
-use std::thread;
-use std::time::Duration;
 use termcolor::{Color, ColorSpec, WriteColor};
+
+use crate::error::StarTrustError;
+#[allow(unused_imports)]
+use crate::{StResult, TheGame};
 
 const ESC_KEY: u8 = 27; /* 'ESC' key code */
 const ENTER_KEY: u8 = 10; /* 'Enter' key code *///3
