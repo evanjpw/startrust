@@ -12,6 +12,7 @@ use crate::the_game::damage::Component;
 use crate::the_game::GameState;
 use crate::util::rnd;
 use crate::{StResult, TheGame};
+use crate::the_game::path::do_path;
 
 const WARP: Component = Component::WarpEngines; // Component #0
 
@@ -123,7 +124,7 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
         *gamecomp = (-1).into();
         return Ok(());
     }
-    the_game.do_path(sout, *a, n)?;
+    do_path(the_game, sout, *a, n)?;
     *a = the_game.saved_command;
     // let i = n;
     if the_game.e <= 0.0 {

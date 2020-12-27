@@ -9,6 +9,7 @@ use crate::interaction::getcourse;
 use crate::the_game::commands::Command;
 use crate::the_game::GameState;
 use crate::{StResult, TheGame};
+use crate::the_game::path::do_path;
 
 pub fn do_torpedoes<R: BufRead, W: WriteColor>(
     the_game: &mut TheGame,
@@ -45,7 +46,7 @@ pub fn do_torpedoes<R: BufRead, W: WriteColor>(
     the_game.p -= 1;
     write!(sout, "TRACK: ")?;
     sout.flush()?;
-    the_game.do_path(sout, *a, n)?;
+    do_path(the_game, sout, *a, n)?;
     *a = the_game.saved_command;
     // let i = n;
     if the_game.e <= 0.0 {
