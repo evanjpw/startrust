@@ -1,3 +1,4 @@
+use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -10,6 +11,8 @@ pub enum StarTrustError {
     ParseFloatError(std::num::ParseFloatError),
     #[error("ParseIntError: {0}")]
     ParseIntError(std::num::ParseIntError),
+    #[error("TryFromPrimitiveError")]
+    TryFromPrimitiveError(String),
     #[error("GeneralError: {0}")]
     GeneralError(String),
 }
@@ -31,6 +34,13 @@ impl From<std::num::ParseIntError> for StarTrustError {
         StarTrustError::ParseIntError(value)
     }
 }
+
+impl<T: TryFromPrimitive> From<TryFromPrimitiveError<T>> for StarTrustError {
+    fn from(value: TryFromPrimitiveError<T>) -> Self {
+        StarTrustError::TryFromPrimitiveError(format!("{}", value))
+    }
+}
+
 pub type StResult<T> = std::result::Result<T, StarTrustError>;
 
 // impl <T> From<std::io::Result<T>> for StResult<T> {

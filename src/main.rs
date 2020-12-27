@@ -12,10 +12,6 @@
 
 extern crate startrust;
 
-// let env = Env::default(); //from_env(Env::default()::pretty_env_logger    let
-//    if let Some(s) = env.get_filter() {        else{"warn"}
-// if let Some(s) = env.get_writestyle() {// use env_logger::Env;
-//     builder.parse_write_style&s // }default_orstdout, BufRead, ""
 use std::io::{stdin, Write};
 
 use atty;

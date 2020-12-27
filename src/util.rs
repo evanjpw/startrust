@@ -23,33 +23,11 @@ pub fn find_slot(sector_map: &SectorMap) -> Sector {
     }
 } /* End findslot */
 
-//doublevoid
 /* Initialize pseudo-random number generator */
 pub fn rand_init() -> f64 {
-    /*
-    struct time t;
-    double r1,r2,r3,r4;
-
-    gettime(&t);
-    r1=t.ti_hund;
-    r2=t.ti_sec;
-    r3=t.ti_min;
-    r4=t.ti_hour;
-    r2=floor(r2*(100.0/60.0));
-    r3=floor(r3*(100.0/60.0));
-    r4=floor(r4*(100.0/24.0));
-    rn=r1/100.0+r2/10000.0+r3/1000000.0+r4/100000000.0;
-    return rn;
-    */
-
     // Does nothing
     0.0f64
 } /* End randinit */
-
-/// Get fractional part of (double) real number
-// fn frac(r: f64) -> f64 {
-//     r.fract()
-// } /* End frac */
 
 /// Generate a new pseudo-random number
 pub fn rnd() -> f64 {
