@@ -13,10 +13,11 @@ use termcolor::{Color, ColorSpec, WriteColor};
 use unwrap_infallible::UnwrapInfallible;
 
 use crate::error::StarTrustError::GameStateError;
-use crate::interaction::{beep, delay, getcourse, getinp, getwarp, InputMode, InputValue};
+use crate::interaction::{beep, delay, getcourse, getinp, getwarp, InputValue};
 use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
 use crate::the_game::damage::{Component, Damage};
+use crate::the_game::phasers::phasers;
 use crate::the_game::quadrant::{setup_quadrant, Quadrant, QuadrantContents, QuadrantMap};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
@@ -26,6 +27,7 @@ use crate::{yesno, StResult, StarTrustError};
 mod commands;
 mod config;
 mod damage;
+mod phasers;
 mod quadrant;
 mod sector;
 mod stardate;
@@ -45,6 +47,12 @@ impl GameState {
         match self {
             GameState::InProgress => false,
             _ => true,
+        }
+    }
+
+    fn update(&mut self, new_game_state: GameState) {
+        if *self == GameState::InProgress {
+            *self = new_game_state
         }
     }
 }
@@ -177,6 +185,19 @@ impl TheGame {
     double x3,y3,n,rn,h,;
     char ans,fbuff[81],[7]es[16],cmdbuff[8];
      */
+
+    fn normalize_current_quadrant(&mut self) {
+        if self.q1 > 7 {
+            self.q1 = 7;
+        } else if self.q1 < 0 {
+            self.q1 = 0;
+        };
+        if self.q2 > 7 {
+            self.q2 = 7;
+        } else if self.q2 < 0 {
+            self.q2 = 0;
+        };
+    }
 
     /// Initialize
     pub fn init<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
@@ -518,55 +539,6 @@ impl TheGame {
         Ok(())
     } /* End srscan */
 
-    /// Fire phasers
-    fn phasers<R: BufRead, W: WriteColor>(&mut self, sin: &mut R, sout: &mut W) -> StResult<f64> {
-        let mut x = 0.0;
-        let i = Component::Phasers; // Component # 3
-        if self.damage.is_damaged(i.into(), false) {
-            // Phasers inoperative
-            self.damage.show_damage(sout, i)?;
-            return Ok(x);
-        }
-        loop {
-            write!(sout, "PHASERS READY: ENERGY UNITS TO FIRE? ")?;
-            sout.flush()?;
-            let gb = getinp(sin, sout, 15, InputMode::Mode2)?;
-            writeln!(sout)?;
-            if let InputValue::InputString(ibuff) = gb {
-                x = ibuff.parse()?;
-            } else {
-                x = 0.0;
-                break;
-            }
-            if x <= self.e {
-                break;
-            }
-            writeln!(sout, "ONLY GOT {:03}", self.e)?; // The printf format was "%.3f"
-        }
-        self.e -= x;
-        let y3 = self.k as f64;
-        for i in 0..8 {
-            if self.k3[i] > 0.0 {
-                let f = fnd(self.k1[i], self.k2[i], self.s1, self.s2);
-                debug!("About to fire phasers: x = {}, y3 = {}, f = {}", x, y3, f);
-                let h = x / (y3 * f.powf(0.4));
-                self.k3[i] -= h;
-                let n = self.k3[i];
-                self.show_hit(sout, i, "KLINGON AT", n, h)?;
-                if self.k3[i] <= 0.0 {
-                    writeln!(sout, "**KLINGON DESTROYED**")?;
-                    self.k -= 1;
-                    self.total_klingons -= 1;
-                    let sector = Sector::new(self.k1[i], self.k2[i]);
-                    self.sect[sector] = 1;
-                    let quadrant = self.current_quadrant();
-                    self.quad[quadrant].decrement_klingons();
-                }
-            }
-        }
-        Ok(x)
-    } /* End phasers */
-
     /// Do the path for warp or torpedo
     fn do_path<W: WriteColor>(&mut self, sout: &mut W, a: Command, n: f64) -> StResult<()> {
         let mut y1 = self.s1 as f64 + 0.5;
@@ -713,14 +685,14 @@ impl TheGame {
                 // Move
                 self.newquad = true;
                 self.q1 =
-                    (self.q1 as f64 + self.w * y3 + (self.s1 as f64 + 0.5) / 8.0).floor() as i32; //u8
+                    (self.q1 as f64 + self.w * y3 + (self.s1 as f64 + 0.5) / 8.0).floor() as i32;
                 self.q2 =
-                    (self.q2 as f64 + self.w * x3 + (self.s2 as f64 + 0.5) / 8.0).floor() as i32; //u8
+                    (self.q2 as f64 + self.w * x3 + (self.s2 as f64 + 0.5) / 8.0).floor() as i32;
                 self.q1 =
-                    (self.q1 as i32 - lt(self.q1 as f64, 0.0) + gt(self.q1 as f64, 7.0)) as i32; //u8
+                    (self.q1 as i32 - lt(self.q1 as f64, 0.0) + gt(self.q1 as f64, 7.0)) as i32;
                 self.q2 =
                     (self.q2 as i32 - lt(self.q2 as f64, 0.0) + gt(self.q2 as f64, 7.0)) as i32;
-            //u8
+                self.normalize_current_quadrant();
             } else if a == Command::PhotonTorpedos
             // Command #5
             {
@@ -969,26 +941,9 @@ impl TheGame {
                         }
                         Command::Phasers => {
                             //case 4 :
-                            /* Phasers */
-                            let x = self.phasers(sin, sout)?;
-                            if x > 0.0 {
-                                if self.e <= 0.0 {
-                                    /* Ran out of energy */
-                                    gamecomp = (-1).into();
-                                }
-                                self.check_for_hits(sout)?;
-                                if self.e <= 0.0 {
-                                    /* Ran out of energy */
-                                    gamecomp = (-1).into();
-                                }
-                                if self.total_klingons < 1 {
-                                    /* All Klingons destroyed! */
-                                    gamecomp = 1.into();
-                                }
-                                if !gamecomp.is_done() {
-                                    self.check_condition()
-                                };
-                            }
+                            /* Phasers *///xselfselfselfselfselff64
+                            let x = phasers(self, sin, sout)?;
+                            gamecomp.update(x);
                         }
                         Command::PhotonTorpedos => {
                             //case 5 :
@@ -1097,8 +1052,8 @@ impl TheGame {
 //    if let Some(s) = env.get_filter() {        else{"warn"}
 // if let Some(s) = env.get_writestyle() {// use env_logger::Env;
 //     builder.parse_write_style&s // }default_orstdout, BufRead, ""
-//doublevoid
-/*
+//doublevoid = 0.0
+/*l
 struct time t;
 double r1,r2,r3,r4;
 gettime(&t);
@@ -1114,5 +1069,5 @@ return rn;
 */
 // / Get fractional part of (double) real number
 // fn frac(r: f64) -> f64 {
-//     r.fract()
-// } /* End frac */
+//     r.fract()// } /* End frac */// return Ok(x);
+//selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself

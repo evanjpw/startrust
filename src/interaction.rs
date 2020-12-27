@@ -228,7 +228,7 @@ pub enum InputMode {
     /// alphabetic, space, and digits only
     Mode3 = 3,
     #[num_enum(default)]
-    ///
+    /// The mode that isn't a mode
     InvalidMode = -1,
 }
 
@@ -400,7 +400,7 @@ pub fn getcourse<R: BufRead, W: WriteColor>(
     writeln!(sout)?;
 
     Ok(if let InputValue::InputString(ibuff) = gb? {
-        ibuff.parse()?
+        ibuff.parse().unwrap_or(0.0)
     } else {
         0.0
     })
@@ -413,7 +413,7 @@ pub fn getwarp<R: BufRead, W: WriteColor>(sin: &mut R, sout: &mut W) -> StResult
     let gb = getinp(sin, sout, 4, 2.into())?;
     writeln!(sout)?;
     Ok(if let InputValue::InputString(ibuff) = gb {
-        ibuff.parse()?
+        ibuff.parse().unwrap_or(0.0)
     } else {
         0.0
     })
