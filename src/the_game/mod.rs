@@ -1,6 +1,5 @@
 //! # startrust::the_game
 
-use std::convert::{AsRef, TryInto};
 use std::f64::consts::FRAC_PI_4;
 #[allow(unused_imports)]
 use std::io::{BufRead, Write};
@@ -13,14 +12,17 @@ use termcolor::{Color, ColorSpec, WriteColor};
 use unwrap_infallible::UnwrapInfallible;
 
 use crate::error::StarTrustError::GameStateError;
-use crate::interaction::{beep, delay, getcourse, getinp, getwarp, InputValue};
+use crate::interaction::{getinp, InputValue};
 use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
-use crate::the_game::damage::{Component, Damage};
+use crate::the_game::damage::Damage;
 use crate::the_game::phasers::phasers;
 use crate::the_game::quadrant::{setup_quadrant, Quadrant, QuadrantContents, QuadrantMap};
+use crate::the_game::scan::{galactic_records, l_range_scan, s_range_scan};
 pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
+use crate::the_game::torpedoes::do_torpedoes;
+use crate::the_game::warp::do_warp;
 use crate::util::{fnd, gt, lt, rand_init, rnd, set_random_x_y};
 use crate::{yesno, StResult, StarTrustError};
 
@@ -29,8 +31,11 @@ mod config;
 mod damage;
 mod phasers;
 mod quadrant;
+mod scan;
 mod sector;
 mod stardate;
+mod torpedoes;
+mod warp;
 
 #[derive(Copy, Clone, Debug, IntoPrimitive, FromPrimitive, Eq, PartialEq)]
 #[repr(i32)]
@@ -143,6 +148,7 @@ pub struct TheGame {
     s: i32,
     ending_stardate: StarDate,
 }
+
 impl TheGame {
     pub fn new(the_game_defs: &TheGameDefs) -> Self {
         // s1 & s2 and q1 & q2 are not set initially, we will use (0, 0) the game
@@ -180,11 +186,6 @@ impl TheGame {
             ending_stardate: the_game_defs.t9,
         }
     }
-    /*
-    int ,,x7,y7,i,j,;
-    double x3,y3,n,rn,h,;
-    char ans,fbuff[81],[7]es[16],cmdbuff[8];
-     */
 
     fn normalize_current_quadrant(&mut self) {
         if self.q1 > 7 {
@@ -211,7 +212,7 @@ impl TheGame {
 
         let the_game_defs = self.game_defs;
         let mut t9 = the_game_defs.t9;
-        let t0 = the_game_defs.t0;
+        let t0 = self.t0();
         let mut k9 = self.total_klingons as i32;
         let x1 = self.game_defs.x1;
         let x2 = self.game_defs.x2;
@@ -421,124 +422,6 @@ impl TheGame {
         Ok(())
     } /* End checkforhits */
 
-    /// Do long-range scan
-    fn l_range_scan<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
-        let i = Component::LongRangeSensors; // Component #2
-        if self.damage.is_damaged(i.into(), false) {
-            // Long-range scan inoperative
-            self.damage.show_damage(sout, i)?;
-            return Ok(());
-        }
-        let q1: i32 = self.q1 as i32;
-        let q2: i32 = self.q2 as i32;
-        writeln!(sout, "{} FOR QUADRANT {} - {}", i.as_ref(), q1 + 1, q2 + 1)?;
-        for i in (q1 - 1)..=(q1 + 1) {
-            for j in (q2 - 1)..=(q2 + 1) {
-                write!(sout, "   ")?;
-                sout.flush()?;
-                if (i < 0) || (i > 7) || (j < 0) || (j > 7) {
-                    sout.set_color(ColorSpec::new().set_dimmed(true))?;
-                    write!(sout, "***")?;
-                    sout.flush()?;
-                    sout.reset()?;
-                } else {
-                    let quadrant = Quadrant::new(i as i32, j as i32);
-                    self.quad[quadrant].show();
-                    self.qstr(sout, i as i32, j as i32, self.is_current_quadrant(i, j))?;
-                }
-            }
-            writeln!(sout)?;
-        }
-        Ok(())
-    } /* End lrscan */
-
-    /// Do galactic records
-    fn galactic_records<W: WriteColor>(&self, sout: &mut W) -> StResult<()> {
-        let i = Component::GalacticRecords; // Component #5
-        if self.damage.is_damaged(i.into(), false) {
-            // Galactic records inoperative
-            self.damage.show_damage(sout, i)?;
-            return Ok(());
-        }
-        writeln!(
-            sout,
-            "CUMULATIVE GALACTIC MAP FOR STARDATE {}",
-            self.current_stardate
-        )?;
-        for i in 0..8 {
-            for j in 0..8 {
-                write!(sout, "  ")?;
-                sout.flush()?;
-                self.qstr(sout, i as i32, j as i32, self.is_current_quadrant(i, j))?;
-            }
-            writeln!(sout)?;
-        }
-        Ok(())
-    } /* End galrecs */
-
-    /// Do short-range scan
-    fn s_range_scan<W: WriteColor>(&mut self, sout: &mut W, a: i32) -> StResult<()> {
-        self.check_condition(); //?
-        if a == 0
-        /* Initial entry into quadrant */
-        {
-            self.check_for_hits(sout)?;
-            if self.e <= 0.0 {
-                /* Ran out of energy! */
-                return Ok(());
-            }
-        }
-        let i = Component::ShortRangeSensors; // Component #1
-        if self.damage.is_damaged(i.into(), false) {
-            // Short-range scan inoperative
-            self.damage.show_damage(sout, i)?;
-            return Ok(());
-        }
-        for i in 0..8 {
-            for j in 0..8 {
-                write!(sout, "{} ", self.sect.sector_char_at_coords(i, j))?;
-                sout.flush()?;
-            }
-            write!(sout, "  ")?;
-            sout.flush()?;
-            match i {
-                0 => {
-                    writeln!(
-                        sout,
-                        "YEARS = {}",
-                        self.game_defs.t9 - self.current_stardate
-                    )?;
-                }
-                1 => {
-                    writeln!(sout, "STARDATE = {}", self.current_stardate)?;
-                }
-                2 => {
-                    write!(sout, "CONDITION: ")?;
-                    sout.set_color(&self.cond.get_color_spec())?;
-                    writeln!(sout, "{}", self.cond.as_ref())?;
-                    sout.reset()?;
-                }
-                3 => {
-                    writeln!(sout, "QUADRANT = {} - {}", self.q1 + 1, self.q2 + 1)?;
-                }
-                4 => {
-                    writeln!(sout, "SECTOR = {} - {}", self.s1 + 1, self.s2 + 1)?;
-                }
-                5 => {
-                    writeln!(sout, "ENERGY = {:03}", self.e)?; // printf format string was "%.3f"
-                }
-                6 => {
-                    writeln!(sout, "{} = {}", Component::PhotonTorpedoes.as_ref(), self.p)?;
-                }
-                7 => {
-                    writeln!(sout, "KLINGONS LEFT = {}", self.total_klingons)?;
-                }
-                _ => {}
-            }
-        }
-        Ok(())
-    } /* End srscan */
-
     /// Do the path for warp or torpedo
     fn do_path<W: WriteColor>(&mut self, sout: &mut W, a: Command, n: f64) -> StResult<()> {
         let mut y1 = self.s1 as f64 + 0.5;
@@ -703,185 +586,12 @@ impl TheGame {
         Ok(())
     } /* End dopath */
 
-    pub fn do_warp<R: BufRead, W: WriteColor>(
-        &mut self,
-        sin: &mut R,
-        sout: &mut W,
-        a: &mut Command,
-        gamecomp: &mut GameState,
-        moved: &mut bool,
-    ) -> StResult<()> {
-        let mut w = 0f64;
-        let mut c;
-
-        loop {
-            loop {
-                c = getcourse(sin, sout)?;
-                self.c = c;
-                if c < 9.0 {
-                    break;
-                }
-                beep();
-            }
-            if c >= 1.0 {
-                loop {
-                    w = getwarp(sin, sout)?;
-                    if (w <= 0.0) || (w > 12.0) {
-                        c = 10.0;
-                        break;
-                    }
-                    let i = Component::WarpEngines; // Component #0
-                    if self.damage.is_damaged(i.into(), false) && (w > 0.2) {
-                        write!(sout, "{} DAMAGED; MAX IS 0.2; ", i.as_ref())?;
-                        sout.flush()?;
-                        self.damage.show_est_repair_time(sout, i.into())?;
-                        beep();
-                    } else {
-                        break;
-                    }
-                    beep();
-                }
-            }
-            if c < 9.0 {
-                break;
-            }
-        }
-        if c < 1.0 {
-            // Abort move
-            return Ok(());
-        }
-        self.check_for_hits(sout)?;
-        if self.e <= 0.0 {
-            /* Ran out of energy */
-            *gamecomp = (-1).into();
-            return Ok(());
-        }
-
-        if rnd() <= 0.25 {
-            let x = (rnd() * 6.0).floor() as usize;
-            if rnd() <= 0.5 {
-                beep();
-                self.damage
-                    .add_damage(x, (6.0 - rnd() * 5.0).floor() as i32);
-                let i: Component = x.try_into()?;
-                writeln!(sout, "**SPACE STORM, {} DAMAGED**", i)?;
-                self.damage.show_est_repair_time(sout, x.into())?;
-                self.damage.add_damage(x, 1);
-                delay(100);
-                beep();
-            } else {
-                let mut j: i32 = -1;
-                for i in x..6 {
-                    if self.damage.is_damaged(i, false) {
-                        j = i as i32;
-                        break;
-                    }
-                }
-                if j < 0 {
-                    for i in 0..x {
-                        if self.damage.is_damaged(i, false) {
-                            j = i as i32;
-                            break;
-                        }
-                    }
-                }
-                if j >= 0 {
-                    self.damage.set_damage(j as usize, 1);
-                    writeln!(sout, "**SPOCK USED A NEW REPAIR TECHNIQUE**")?;
-                }
-            }
-        }
-        for i in 0..6 {
-            if self.damage.is_damaged(i, true) {
-                if self.damage.reduce_and_normalize_damage(i) {
-                    let component: Component = i.try_into()?;
-                    writeln!(sout, "{} ARE FIXED!", component.as_ref())?;
-                    beep();
-                }
-            }
-        }
-        let n = (w * 8.0).floor();
-        self.w = w;
-        self.e = self.e - n - n + 0.5;
-        self.current_stardate += 1i32;
-        let current_sector = self.current_sector();
-        self.sect[current_sector] = 1;
-        if self.current_stardate > self.game_defs.t9 {
-            /* Ran out of time! */
-            *gamecomp = (-1).into();
-            return Ok(());
-        }
-        self.do_path(sout, *a, n)?;
-        *a = self.saved_command;
-        // let i = n;
-        if self.e <= 0.0 {
-            // Ran out of energy
-            *gamecomp = (-1).into();
-            return Ok(());
-        }
-        *moved = true;
-        Ok(())
-    }
-
-    fn do_torpedoes<R: BufRead, W: WriteColor>(
-        &mut self,
-        sin: &mut R,
-        sout: &mut W,
-        a: &mut Command,
-        gamecomp: &mut GameState,
-    ) -> StResult<()> {
-        if self.damage.is_damaged(4, false) {
-            // Torpedoes damaged
-            write!(sout, "SPACE CRUD BLOCKING TUBES.  ")?;
-            sout.flush()?;
-            let i = 4;
-            self.damage.show_est_repair_time(sout, i)?;
-            beep();
-            return Ok(());
-        }
-        let n: f64 = 15.0;
-        if self.p < 1 {
-            writeln!(sout, "NO TORPEDOES LEFT!")?;
-            return Ok(());
-        }
-        self.c = 10.0;
-        while self.c >= 9.0 {
-            write!(sout, "TORPEDO ")?;
-            sout.flush()?;
-
-            self.c = getcourse(sin, sout)?; // self
-        }
-        if self.c < 1.0 {
-            // Abort firing of torpedo
-            return Ok(());
-        }
-        self.p -= 1;
-        write!(sout, "TRACK: ")?;
-        sout.flush()?;
-        self.do_path(sout, *a, n)?;
-        *a = self.saved_command;
-        // let i = n;
-        if self.e <= 0.0 {
-            /* Ran out of energy */
-            *gamecomp = (-1).into();
-        }
-        self.check_for_hits(sout)?;
-        if self.e <= 0.0 {
-            /* Ran out of energy */
-            *gamecomp = (-1).into();
-        }
-        if self.total_klingons < 1 {
-            /* All Klingons destroyed! */
-            *gamecomp = 1.into();
-        }
-        if !gamecomp.is_done() {
-            self.check_condition();
-        }
-        Ok(())
-    }
-
     pub fn s9(&self) -> f64 {
         self.game_defs.s9
+    }
+
+    pub fn t0(&self) -> StarDate {
+        self.game_defs.t0
     }
 
     pub fn play<R: BufRead, W: WriteColor>(&mut self, sin: &mut R, sout: &mut W) -> StResult<()> {
@@ -904,7 +614,7 @@ impl TheGame {
             }
             self.newquad = false;
             moved = false;
-            self.s_range_scan(sout, a.into())?;
+            s_range_scan(self, sout, a.into())?;
             if self.e <= 0.0 {
                 /* Ran out of energy */
                 gamecomp = GameState::Lost;
@@ -927,33 +637,33 @@ impl TheGame {
                         Command::WarpEngines => {
                             //case 1 :
                             // Warp engines
-                            self.do_warp(sin, sout, &mut a, &mut gamecomp, &mut moved)?;
+                            do_warp(self, sin, sout, &mut a, &mut gamecomp, &mut moved)?;
                         }
                         Command::ShortRangeScan => {
                             //case 2 :
                             // Short-range scan
-                            self.s_range_scan(sout, a.into())?;
+                            s_range_scan(self, sout, a.into())?;
                         }
                         Command::LongRangeScan => {
                             //case 3 :
                             /* Long-range scan */
-                            self.l_range_scan(sout)?;
+                            l_range_scan(self, sout)?;
                         }
                         Command::Phasers => {
                             //case 4 :
-                            /* Phasers *///xselfselfselfselfselff64
+                            /* Phasers */
                             let x = phasers(self, sin, sout)?;
                             gamecomp.update(x);
                         }
                         Command::PhotonTorpedos => {
                             //case 5 :
                             // Photon torpedoes
-                            self.do_torpedoes(sin, sout, &mut a, &mut gamecomp)?;
+                            do_torpedoes(self, sin, sout, &mut a, &mut gamecomp)?;
                         }
                         Command::GalacticRecords => {
                             //case 6 :
                             /* Galactic records */
-                            self.galactic_records(sout)?;
+                            galactic_records(self, sout)?;
                         }
                         Command::Quit => {
                             write!(sout, "\nARE YOU SURE YOU WANT TO QUIT? ")?;
@@ -993,7 +703,7 @@ impl TheGame {
         match gamecomp {
             GameState::Won => {
                 let t = self.current_stardate;
-                let t0 = self.game_defs.t0;
+                let t0 = self.t0();
                 let drate: f64 = (t - t0) as f64;
                 let rating: i32 = ((self.k0 as f64 / drate) * 1000.0) as i32;
                 writeln!(sout, "THE FEDERATION HAS BEEN SAVED!")?;
@@ -1051,12 +761,12 @@ impl TheGame {
 // let env = Env::default(); //from_env(Env::default()::pretty_env_logger    let
 //    if let Some(s) = env.get_filter() {        else{"warn"}
 // if let Some(s) = env.get_writestyle() {// use env_logger::Env;
-//     builder.parse_write_style&s // }default_orstdout, BufRead, ""
-//doublevoid = 0.0
+//     builder.parse_write_style&s // }default_orstdout, BufRead, ""the_game_defsgame_defs.
+//doublevoid = 0.0le.
 /*l
 struct time t;
 double r1,r2,r3,r4;
-gettime(&t);
+gettime(&t);, TryInto
 r1=t.ti_hund;
 r2=t.ti_sec;
 r3=t.ti_min;
@@ -1071,3 +781,13 @@ return rn;
 // fn frac(r: f64) -> f64 {
 //     r.fract()// } /* End frac */// return Ok(x);
 //selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
+//selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
+/*
+int ,,x7,y7,i,j,;
+double x3,y3,n,rn,h,;
+char ans,fbuff[81],[7]es[16],cmdbuff[8];
+ */
+//selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
+// selfselfselfselfselfselfselfself..//xselfselfselfselfselff64.self.
+// use std::convert::AsRef;//Component ,//selfselfselfselfselfselfselfselfselfselfselfselfselfself
+// selfselfself.
