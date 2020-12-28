@@ -117,9 +117,9 @@ pub fn do_path<W: WriteColor>(
                     }
                 }
                 _ => {
-                    return Err(StarTrustError::GameStateError(format!(
-                        "Ship blocked by unknown object"
-                    )))
+                    return Err(StarTrustError::GameStateError(
+                        "Ship blocked by unknown object".to_string()
+                    ))
                 }
             }
             if a == Command::WarpEngines

@@ -1,3 +1,4 @@
+#![allow(clippy::many_single_char_names)]
 #[macro_use]
 extern crate derive_builder;
 extern crate dimensioned as dim;

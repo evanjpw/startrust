@@ -85,8 +85,7 @@ impl Damage {
         i: usize,
     ) -> StResult<()> {
         writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.0[i]).map_err(|e| {
-            let e = e.into();
-            e
+            e.into()
         })
     } /* End showestreptime */
 

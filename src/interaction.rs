@@ -18,7 +18,7 @@ use crate::{StResult, TheGame};
 const ESC_KEY: u8 = 27; /* 'ESC' key code */
 const ENTER_KEY: u8 = 10; /* 'Enter' key code *///3
 const MINUS_ENTER_KEY: u8 = ((-(ENTER_KEY as i32)) & 0xFF) as u8;
-const NULL_C: u8 = '\0' as u8; /* Null character */
+const NULL_C: u8 = b'\0'; /* Null character */
 const F1_KEY: u8 = (-59 & 0xFF) as u8; /* 'F1' key code (following NULL) */
 const BKSPC_KEY: u8 = 8; /* 'Backspace' key code */
 const SPC: u8 = 32; /* Space character */
@@ -155,20 +155,20 @@ pub fn buzz() {
 /// Check for valid input characters
 fn charokay(cc: u8, mode: InputMode) -> bool {
     match mode {
-        InputMode::Mode0 => (cc >= (' ' as u8)) && (cc <= ASCHI),
+        InputMode::Mode0 => (cc >= (b' ')) && (cc <= ASCHI),
         InputMode::Mode1 => {
-            (cc >= ('A' as u8)) && (cc <= ('Z' as u8)) || (cc == ('*' as u8)) || (cc == (' ' as u8))
+            (cc >= b'A') && (cc <= b'Z') || (cc == b'*') || (cc == b' ')
         }
         InputMode::Mode2 => {
-            ((cc >= ('0' as u8)) && (cc <= ('9' as u8)))
-                || (cc == ('.' as u8))
-                || (cc == (',' as u8))
-                || (cc == ('-' as u8))
+            ((cc >= b'0') && (cc <= b'9'))
+                || (cc == b'.')
+                || (cc == b',')
+                || (cc == b'-')
         }
         InputMode::Mode3 => {
-            ((cc >= ('A' as u8)) && (cc <= ('Z' as u8)))
-                || ((cc >= ('0' as u8)) && (cc <= ('9' as u8)))
-                || (cc == (' ' as u8))
+            ((cc >= b'A') && (cc <= b'Z'))
+                || ((cc >= b'0') && (cc <= b'9'))
+                || (cc == b' ')
         }
         InputMode::InvalidMode => false,
     }
@@ -267,7 +267,7 @@ pub fn getinp<R: BufRead, W: WriteColor>(
             if let Some(n_cc) = getch(sin)? {
                 let n_cc = (-(n_cc as i32) & 0xFF) as u8;
                 let mut l = buff.len() as i32;
-                if md == 2.into() {
+                if md == 2 {
                     match n_cc {
                         F1_KEY => {
                             /*  F1;  Help - same as blank CR  */
@@ -324,7 +324,7 @@ pub fn getinp<R: BufRead, W: WriteColor>(
                 _ => {
                     // Possibly valid ASCII character
                     if buff.len() < _length {
-                        cc = ((cc as char).to_uppercase().next().ok_or(
+                        cc = ((cc as char).to_uppercase().next().ok_or_else(||
                             StarTrustError::GeneralError(format!(
                                 "Error converting {} to upper case",
                                 cc

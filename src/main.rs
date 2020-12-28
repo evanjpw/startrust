@@ -14,7 +14,6 @@ extern crate startrust;
 
 use std::io::{stdin, Write};
 
-use atty;
 use clap::{crate_authors, crate_description, crate_version, Clap};
 use log::{debug, LevelFilter};
 use termcolor::{ColorChoice, StandardStream, WriteColor};
@@ -41,7 +40,7 @@ struct GetOpts {
 fn get_game_config() -> StResult<TheGameDefs> {
     let the_game_defs = TheGameDefsBuilder::default()
         .build()
-        .map_err(|e| StarTrustError::GeneralError(e))?;
+        .map_err(StarTrustError::GeneralError)?;
     Ok(the_game_defs)
 }
 

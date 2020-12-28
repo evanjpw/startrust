@@ -78,7 +78,7 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
                 .add_damage(x, (6.0 - rnd() * 5.0).floor() as i32);
             let i: Component = x.try_into()?;
             writeln!(sout, "**SPACE STORM, {} DAMAGED**", i)?;
-            the_game.damage.show_est_repair_time(sout, x.into())?;
+            the_game.damage.show_est_repair_time(sout, x)?;
             the_game.damage.add_damage(x, 1);
             delay(100);
             beep();
@@ -105,12 +105,10 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
         }
     }
     for i in 0..6 {
-        if the_game.damage.is_damaged(i, true) {
-            if the_game.damage.reduce_and_normalize_damage(i) {
+        if the_game.damage.is_damaged(i, true) && the_game.damage.reduce_and_normalize_damage(i) {
                 let component: Component = i.try_into()?;
                 writeln!(sout, "{} ARE FIXED!", component.as_ref())?;
                 beep();
-            }
         }
     }
     let n = (w * 8.0).floor();

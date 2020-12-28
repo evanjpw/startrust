@@ -49,10 +49,7 @@ pub enum GameState {
 
 impl GameState {
     fn is_done(&self) -> bool {
-        match self {
-            GameState::InProgress => false,
-            _ => true,
-        }
+        !matches!(self, GameState::InProgress)
     }
 
     fn update(&mut self, new_game_state: GameState) {
@@ -168,8 +165,8 @@ impl TheGame {
         // s1 & s2 and q1 & q2 are not set initially, we will use (0, 0) the game
         // initialization will randomize them later
         let b9 = 0;
-        let c = 100 as f64;
-        let w = 10 as f64;
+        let c = 100_f64;
+        let w = 10_f64;
         Self {
             energy: the_game_defs.initial_energy,
             photo_torpedoes: the_game_defs.initial_photon_torpedoes,
@@ -400,8 +397,7 @@ impl TheGame {
             n
         )
         .map_err(|e| {
-            let e = e.into();
-            e
+            e.into()
         })
     } /* End showhit */
 
