@@ -7,9 +7,9 @@ use termcolor::WriteColor;
 use crate::interaction::beep;
 use crate::interaction::getcourse;
 use crate::the_game::commands::Command;
+use crate::the_game::path::do_path;
 use crate::the_game::GameState;
 use crate::{StResult, TheGame};
-use crate::the_game::path::do_path;
 
 pub fn do_torpedoes<R: BufRead, W: WriteColor>(
     the_game: &mut TheGame,
@@ -28,33 +28,33 @@ pub fn do_torpedoes<R: BufRead, W: WriteColor>(
         return Ok(());
     }
     let n: f64 = 15.0;
-    if the_game.p < 1 {
+    if the_game.photo_torpedoes < 1 {
         writeln!(sout, "NO TORPEDOES LEFT!")?;
         return Ok(());
     }
-    the_game.c = 10.0;
-    while the_game.c >= 9.0 {
+    the_game.course = 10.0;
+    while the_game.course >= 9.0 {
         write!(sout, "TORPEDO ")?;
         sout.flush()?;
 
-        the_game.c = getcourse(sin, sout)?;
+        the_game.course = getcourse(sin, sout)?;
     }
-    if the_game.c < 1.0 {
+    if the_game.course < 1.0 {
         // Abort firing of torpedo
         return Ok(());
     }
-    the_game.p -= 1;
+    the_game.photo_torpedoes -= 1;
     write!(sout, "TRACK: ")?;
     sout.flush()?;
     do_path(the_game, sout, *a, n)?;
     *a = the_game.saved_command;
     // let i = n;
-    if the_game.e <= 0.0 {
+    if the_game.energy <= 0.0 {
         /* Ran out of energy */
         *gamecomp = (-1).into();
     }
     the_game.check_for_hits(sout)?;
-    if the_game.e <= 0.0 {
+    if the_game.energy <= 0.0 {
         /* Ran out of energy */
         *gamecomp = (-1).into();
     }

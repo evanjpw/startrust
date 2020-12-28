@@ -15,14 +15,14 @@ use crate::interaction::{getinp, InputValue};
 use crate::the_game::commands::Command;
 pub use crate::the_game::config::{TheGameDefs, TheGameDefsBuilder};
 use crate::the_game::damage::Damage;
-use crate::the_game::phasers::phasers;
+use crate::the_game::phasers::{fnd, phasers};
 use crate::the_game::quadrant::{setup_quadrant, Quadrant, QuadrantContents, QuadrantMap};
 use crate::the_game::scan::{galactic_records, l_range_scan, s_range_scan};
-pub use crate::the_game::sector::{Sector, SectorContents, SectorMap};
+pub use crate::the_game::sector::{find_slot, Sector, SectorContents, SectorMap};
 use crate::the_game::stardate::StarDate;
 use crate::the_game::torpedoes::do_torpedoes;
 use crate::the_game::warp::do_warp;
-use crate::util::{fnd, gt, lt, rand_init, rnd, set_random_x_y};
+use crate::util::{get_random_x_y, gt, lt, rand_init, rnd};
 use crate::{yesno, StResult, StarTrustError};
 
 mod commands;
@@ -104,14 +104,21 @@ impl Condition {
     }
 }
 
+// The interpretation of (s1, s2) and (q1, q2) is unclear. Most of the code, the instructions, and
+// most of the game play suggest that they are (y, x), which is weird, but there are also places in
+// the code where they are used as if they are (x, y). It appears that (y, x) was the way it was
+// initially coded, but then someone modifying or translating the code, or even the author, became
+// confused and thought that it was (x, y). This rewrite preserves the confusion, for the time
+// being, because it is trying to recreate the 1978 game accurately. This is also why the ambiguous
+// names were preserved.
+
 pub struct TheGame {
     /// Current Energy
-    e: f64,
+    energy: f64,
     /// Current Photon Torpedoes
-    p: i32,
+    photo_torpedoes: i32,
     /// Current StarDate
     current_stardate: StarDate,
-    years: i32,
     /// Total remaining Klingons
     total_klingons: i32,
     /// The Enterprise's x position within the Quadrant
@@ -124,29 +131,36 @@ pub struct TheGame {
     q2: i32,
     /// The Damage Array
     damage: Damage,
-    k0: i32,
-    k1: Vec<i32>,
-    k2: Vec<i32>,
-    k3: Vec<f64>,
+    /// Klingons Destroyed
+    klingons_destroyed: i32,
     /// The number of Starbases
     total_starbases: i32,
     /// New Quadrant
-    newquad: bool,
-    k: i32,
+    new_quadrant: bool,
     /// The Sector Map
-    pub(crate) sect: SectorMap,
+    pub(crate) sector_map: SectorMap,
     /// The Quadrant Map
-    pub(crate) quad: QuadrantMap,
+    pub(crate) quadrant_map: QuadrantMap,
+    /// Configured game starting values
     pub(crate) game_defs: TheGameDefs,
-    c: f64,
-    /// Warp
-    w: f64,
-    b: i32,
-    /// The current condition of the Enterprise as a String
-    cond: Condition,
+    /// The current condition of the Enterprise
+    current_condition: Condition,
+    /// The current command (used as a flag to initiate certain behavior)
     saved_command: Command,
-    s: i32,
+    /// The ending stardate for the game
     ending_stardate: StarDate,
+    /// Starbases in the current quadrant
+    quadrant_starbases: i32,
+    /// Klingons in the current quadrant
+    quadrant_klingons: i32,
+    /// Course
+    course: f64,
+    /// Warp
+    warp: f64,
+    k1: Vec<i32>,
+    k2: Vec<i32>,
+    k3: Vec<f64>,
+    s: i32,
 }
 
 impl TheGame {
@@ -157,33 +171,32 @@ impl TheGame {
         let c = 100 as f64;
         let w = 10 as f64;
         Self {
-            e: the_game_defs.e0,
-            p: the_game_defs.p0,
-            current_stardate: the_game_defs.t0,
-            years: (the_game_defs.t9 - the_game_defs.t0) as i32,
-            total_klingons: the_game_defs.k9,
-            sect: SectorMap::new(),
-            quad: QuadrantMap::new(),
+            energy: the_game_defs.initial_energy,
+            photo_torpedoes: the_game_defs.initial_photon_torpedoes,
+            current_stardate: the_game_defs.beginning_stardate,
+            total_klingons: the_game_defs.initial_total_klingons,
+            sector_map: SectorMap::new(),
+            quadrant_map: QuadrantMap::new(),
             s1: 0,
             s2: 0,
             q1: 0,
             q2: 0,
             damage: Damage::new(),
-            k0: 0,
+            klingons_destroyed: 0,
             k1: vec![0i32; 8],
             k2: vec![0i32; 8],
             k3: vec![0.0; 8],
             game_defs: *the_game_defs,
             total_starbases: b9,
-            newquad: false,
-            k: 0,
-            c,
-            w,
-            b: 0,
-            cond: Condition::Undefined,
+            new_quadrant: false,
+            quadrant_klingons: 0,
+            course: c,
+            warp: w,
+            quadrant_starbases: 0,
+            current_condition: Condition::Undefined,
             saved_command: Command::Undefined, // the global version of `a`
             s: 0,
-            ending_stardate: the_game_defs.t9,
+            ending_stardate: the_game_defs.ending_stardate,
         }
     }
 
@@ -204,21 +217,22 @@ impl TheGame {
     pub fn init<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
         rand_init();
         self.damage.fix_damage();
-        let (mut x, mut y) = set_random_x_y();
+        let (x, y) = get_random_x_y();
         self.set_current_quadrant_from_coords(x, y);
-        x = 8;
-        y = 1;
-        let mut b9 = self.total_starbases;
+
+        let x = 8;
+        let y = 1;
+        let mut total_starbases = self.total_starbases;
 
         let the_game_defs = self.game_defs;
-        let mut t9 = the_game_defs.t9;
-        let t0 = self.t0();
-        let mut k9 = self.total_klingons as i32;
+        let mut ending_stardate = the_game_defs.ending_stardate;
+        let beginning_stardate = self.beginning_stardate();
+        let mut total_klingons = self.total_klingons as i32;
         let x1 = self.game_defs.x1;
         let x2 = self.game_defs.x2;
         let y1 = self.game_defs.y1;
         let y2 = self.game_defs.y2;
-        let mut k = self.k;
+        let mut k = self.quadrant_klingons;
 
         for i in 0..8 {
             for j in 0..8 {
@@ -233,25 +247,28 @@ impl TheGame {
                         + lt(n, 0.08) as i32
                         + lt(n, 0.03) as i32
                         + lt(n, 0.01) as i32;
-                    k9 -= k as i32;
+                    total_klingons -= k as i32;
                 }
-                self.b = gt(rnd(), self.game_defs.aa);
-                b9 -= self.b as i32; //self.cas f64 self.was i32
+                self.quadrant_starbases = gt(rnd(), self.game_defs.starbase_frequency);
+                total_starbases -= self.quadrant_starbases as i32; //self.cas f64 self.was i32
                 let quadrant = Quadrant::new(i, j);
-                self.quad[quadrant] = QuadrantContents::from_i32(
-                    (k * 100 + (self.b * 10)) - (rnd() * (x as f64) + (y as f64)).floor() as i32,
+                self.quadrant_map[quadrant] = QuadrantContents::from_i32(
+                    (k * 100 + (self.quadrant_starbases * 10))
+                        - (rnd() * (x as f64) + (y as f64)).floor() as i32,
                 );
             }
         }
 
-        if k9 > (t9 - t0) as i32 {
-            t9 = t0 + k9 as i32;
+        // Ensure that there are not more Klignons than years
+        if total_klingons > (ending_stardate - beginning_stardate) as i32 {
+            ending_stardate = beginning_stardate + total_klingons as i32;
         }
 
-        if b9 <= 0 {
-            let (starbase_x, starbase_y) = set_random_x_y();
+        // Ensure that there is at least one starbase
+        if total_starbases <= 0 {
+            let (starbase_x, starbase_y) = get_random_x_y();
             let quadrant = Quadrant::new(starbase_x, starbase_y);
-            let mut quadrant_value = self.quad[quadrant].as_i32();
+            let mut quadrant_value = self.quadrant_map[quadrant].as_i32();
             debug!(
                 "About to subtract ten from quadrant {} with value {}",
                 quadrant, quadrant_value
@@ -261,28 +278,33 @@ impl TheGame {
                 "About to store value {} in quadrant {}",
                 quadrant_value, quadrant
             );
-            self.quad[quadrant] = QuadrantContents::from_i32(quadrant_value);
-            b9 = 1;
+            self.quadrant_map[quadrant] = QuadrantContents::from_i32(quadrant_value);
+            total_starbases = 1;
         }
 
-        self.k = k;
-        self.total_klingons = k9 as i32;
-        self.k0 = k9 as i32;
-        self.total_starbases = b9;
-        self.years = (t9 - t0) as i32;
-        self.ending_stardate = t9;
+        let years = ending_stardate - beginning_stardate;
         writeln!(
             sout,
             "OBJECTIVE: DESTROY {} KLINGON BATTLE CRUISERS IN {} YEARS.",
-            self.total_klingons, self.years
+            total_klingons, years
         )?;
-        writeln!(sout, " THE NUMBER OF STARBASES IS {}.\n", b9)?;
+        writeln!(sout, " THE NUMBER OF STARBASES IS {}.\n", total_starbases)?;
+
+        self.quadrant_klingons = k;
+        self.total_klingons = total_klingons;
+        self.klingons_destroyed = total_klingons;
+        self.total_starbases = total_starbases;
+        self.ending_stardate = ending_stardate;
 
         Ok(())
     } /* End init */
 
+    #[allow(dead_code)]
+    fn years(&self) -> i32 {
+        self.ending_stardate - self.beginning_stardate()
+    }
+
     pub fn increment_year(&mut self) {
-        self.years -= 1;
         self.current_stardate += 1i32;
     }
 
@@ -330,32 +352,32 @@ impl TheGame {
     fn check_condition(&mut self) {
         let s1 = self.s1 as i32;
         let s2 = self.s2 as i32;
-        let e0 = self.game_defs.e0;
-        let p0 = self.game_defs.p0;
+        let e0 = self.game_defs.initial_energy;
+        let p0 = self.game_defs.initial_photon_torpedoes;
         for i in (s1 - 1)..=(s1 + 1) {
             for j in (s2 - 1)..=(s2 + 1) {
                 if (i >= 0) && (i <= 7) && (j >= 0) && (j <= 7) {
                     let sector = Sector::new(i as i32, j as i32);
-                    if self.sect[sector] == SectorContents::Starbase.into() {
+                    if self.sector_map[sector] == SectorContents::Starbase.into() {
                         // Docked at starbase
-                        self.cond = Condition::Docked;
-                        self.e = e0;
-                        self.p = p0;
+                        self.current_condition = Condition::Docked;
+                        self.energy = e0;
+                        self.photo_torpedoes = p0;
                         self.damage.fix_damage();
                         return;
                     }
                 }
             }
         }
-        if self.k > 0 {
+        if self.quadrant_klingons > 0 {
             // Klingons present!
-            self.cond = Condition::Red;
-        } else if self.e < (0.1 * e0) {
+            self.current_condition = Condition::Red;
+        } else if self.energy < (0.1 * e0) {
             // Low energy
-            self.cond = Condition::Yellow;
+            self.current_condition = Condition::Yellow;
         } else {
             // A-OK!
-            self.cond = Condition::Green;
+            self.current_condition = Condition::Green;
         }
     } /* End checkcond */
 
@@ -385,23 +407,12 @@ impl TheGame {
 
     fn is_docked(&self) -> bool {
         // This is an amazingly stupid way to do this, but it's how they do it
-        self.cond == Condition::Docked
+        self.current_condition == Condition::Docked
     }
-
-    /// Set up string for lr scan or galactic records
-    fn qstr<W: WriteColor>(&self, sout: &mut W, i: i32, j: i32, is_current: bool) -> StResult<()> {
-        let quadrant = Quadrant::new(i, j);
-        // The printf format string was "%3.3i", which has a width of 3 digits and has leading 0s.
-        // I _think_.
-        let value = self.quad[quadrant];
-        let emphasize = is_current;
-        value.draw(sout, emphasize)?;
-        Ok(())
-    } /* End qstr */
 
     /// Check for hits from Klingons
     fn check_for_hits<W: WriteColor>(&mut self, sout: &mut W) -> StResult<()> {
-        if self.k < 1 {
+        if self.quadrant_klingons < 1 {
             /* No Klingons here! */
             return Ok(());
         }
@@ -414,8 +425,8 @@ impl TheGame {
                 let mut h = self.k3[i] * 0.4 * rnd();
                 self.k3[i] -= h;
                 h /= fnd(self.k1[i], self.k2[i], self.s1, self.s2).powf(0.4);
-                self.e -= h;
-                let n: f64 = self.e;
+                self.energy -= h;
+                let n: f64 = self.energy;
                 self.show_hit(sout, i, "ENTERPRISE FROM", n, h)?;
             }
         }
@@ -426,8 +437,8 @@ impl TheGame {
         self.game_defs.s9
     }
 
-    pub fn t0(&self) -> StarDate {
-        self.game_defs.t0
+    pub fn beginning_stardate(&self) -> StarDate {
+        self.game_defs.beginning_stardate
     }
 
     pub fn play<R: BufRead, W: WriteColor>(&mut self, sin: &mut R, sout: &mut W) -> StResult<()> {
@@ -437,21 +448,21 @@ impl TheGame {
 
         debug!("Init gamecomp={:?}, moved={}, a={:?}", gamecomp, moved, a);
         self.init(sout)?;
-        self.newquad = true;
+        self.new_quadrant = true;
         debug!(
             "Done initing gamecomp={:?}, moved={}, a={:?}, newquad={}",
-            gamecomp, moved, a, self.newquad
+            gamecomp, moved, a, self.new_quadrant
         );
 
         while !gamecomp.is_done() {
-            if self.newquad {
+            if self.new_quadrant {
                 setup_quadrant(self);
                 a = self.saved_command;
             }
-            self.newquad = false;
+            self.new_quadrant = false;
             moved = false;
             s_range_scan(self, sout, a.into())?;
-            if self.e <= 0.0 {
+            if self.energy <= 0.0 {
                 /* Ran out of energy */
                 gamecomp = GameState::Lost;
             } else {
@@ -539,23 +550,23 @@ impl TheGame {
         match gamecomp {
             GameState::Won => {
                 let t = self.current_stardate;
-                let t0 = self.t0();
+                let t0 = self.beginning_stardate();
                 let drate: f64 = (t - t0) as f64;
-                let rating: i32 = ((self.k0 as f64 / drate) * 1000.0) as i32;
+                let rating: i32 = ((self.klingons_destroyed as f64 / drate) * 1000.0) as i32;
                 writeln!(sout, "THE FEDERATION HAS BEEN SAVED!")?;
                 writeln!(sout, "YOU ARE PROMOTED TO ADMIRAL.")?;
                 writeln!(
                     sout,
                     "{} KLINGONS IN {} YEARS.  RATING = {}\n",
-                    self.k0,
+                    self.klingons_destroyed,
                     t - t0,
                     rating,
                 )?;
             }
             GameState::Lost => {
-                if self.current_stardate > self.game_defs.t9 {
+                if self.current_stardate > self.game_defs.ending_stardate {
                     writeln!(sout, "YOU RAN OUT OF TIME!")?;
-                } else if self.e <= 0.0 {
+                } else if self.energy <= 0.0 {
                     writeln!(sout, "YOU RAN OUT OF ENERGY!")?;
                 } else {
                     return Err(GameStateError(String::from(
@@ -627,4 +638,39 @@ char ans,fbuff[81],[7]es[16],cmdbuff[8];
 // selfselfselfselfselfselfselfself..//xselfselfselfselfselff64.self.
 // use std::convert::AsRef;//Component ,//selfselfselfselfselfselfselfselfselfselfselfselfselfself
 // selfselfself.selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
+//selfself..
 // selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
+// intcc=;cc>;cc--%c%c+  cc;int*()cprintf/, char *buff
+// buff[*bl]=NULLC;
+// mut case:break;default :;{}()//0pio;swi()swi()case:break;l>0%c%cl--;
+//[]NULLCdefault :cprintf()int charint
+// l++// buff[l]=NULLC//break;[l]=cprintf%ccase :break;case : break;case:break;
+/*
+int i,           return ok;
+
+   i=;
+   if ((i<03)) i=1;
+   swi(i)
+   {
+      case 0 :                 break;
+      case 1 :                 break;
+      case 2 :
+         break;
+      case 3 :
+         break;ok=ok=ok=    okok=;;;;    ok: bool;
+ */
+// int
+//
+// for 0;j<blen;j++ []0;
+// fgets(,blen,stream);
+// for (j=strlen()-1;j>=0;j--)
+// {
+// if (buff[j]>31) break;
+// [j]=0;
+// }_tdtodo!()
+//char *buff,int blen,FILE *stream
+// years: i32,
+// years: (the_game_defs.ending_stardate - the_game_defs.beginning_stardate) as i32,
+// use crate::the_game::{Sector, SectorContents, SectorMap};
+// use crate::util::{find_slot, set_random_x_y};
+// use crate::util::fnd;

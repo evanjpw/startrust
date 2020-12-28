@@ -4,23 +4,23 @@ use crate::the_game::stardate::StarDate;
 #[builder(default)]
 pub struct TheGameDefs {
     /// Initial Energy
-    pub(crate) e0: f64, // Probably could be `f32`
+    pub(crate) initial_energy: f64, // Probably could be `f32`
     /// Initial Photon Torpedoes
-    pub(crate) p0: i32, // Probably should be `u8`
+    pub(crate) initial_photon_torpedoes: i32, // Probably should be `u8`
     /// Initial StarDate
-    pub(crate) t0: StarDate,
+    pub(crate) beginning_stardate: StarDate,
     /// Final StarDate
-    pub(crate) t9: StarDate,
+    pub(crate) ending_stardate: StarDate,
+    /// Initial total Klingons
+    pub(crate) initial_total_klingons: i32,
+    pub(crate) starbase_frequency: f64,
+    pub(crate) s9: f64,
+    x: i32,
+    y: i32,
     pub(crate) x1: f64,
     pub(crate) y1: f64,
     pub(crate) x2: f64,
     pub(crate) y2: f64,
-    x: i32,
-    y: i32,
-    pub(crate) aa: f64,
-    pub(crate) s9: f64,
-    pub(crate) k9: i32,
-    // #[builder(setter(skip))] #[builder]
 }
 
 impl TheGameDefs {
@@ -44,20 +44,21 @@ impl Default for TheGameDefs {
         let aa = 0.96;
         let k9 = 0;
         let s9 = 400.0;
+
         Self {
-            t0,
-            t9,
-            e0,
-            p0,
+            beginning_stardate: t0,
+            ending_stardate: t9,
+            initial_energy: e0,
+            initial_photon_torpedoes: p0,
             x1,
             y1,
             x2,
             y2,
             x,
             y,
-            aa,
+            starbase_frequency: aa,
             s9,
-            k9,
+            initial_total_klingons: k9,
         }
     }
 }
@@ -69,9 +70,9 @@ mod tests {
     #[test]
     fn test_game_builder() -> Result<(), String> {
         let the_game_defs = TheGameDefsBuilder::default().build()?;
-        assert_eq!(StarDate::new(3421), the_game_defs.t0);
+        assert_eq!(StarDate::new(3421), the_game_defs.beginning_stardate);
         // assert_eq!(StarDate::new(3421), the_game.t);
-        assert_eq!(StarDate::new(3451), the_game_defs.t9);
+        assert_eq!(StarDate::new(3451), the_game_defs.ending_stardate);
         Ok(())
     }
 }

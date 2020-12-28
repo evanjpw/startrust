@@ -19,7 +19,7 @@ pub fn do_path<W: WriteColor>(
 ) -> StResult<()> {
     let mut y1 = the_game.s1 as f64 + 0.5;
     let mut x1 = the_game.s2 as f64 + 0.5;
-    let mut y3 = (the_game.c - 1.0) as f64 * FRAC_PI_4; // `FRAC_PI_4` _was_ `0.785398`
+    let mut y3 = (the_game.course - 1.0) as f64 * FRAC_PI_4; // `FRAC_PI_4` _was_ `0.785398`
     let x3 = y3.cos();
     y3 = -(y3.sin());
     let mut inquad = true;
@@ -48,7 +48,7 @@ pub fn do_path<W: WriteColor>(
             sout.flush()?;
         }
         if the_game
-            .sect
+            .sector_map
             .sector_contents_at_coords(y7 as i32, x7 as i32)
             != SectorContents::Empty
         // Content type 1
@@ -61,7 +61,7 @@ pub fn do_path<W: WriteColor>(
 
     if inquad {
         // Still in quadrant -- short move, block, or torpedo hit
-        the_game.newquad = false;
+        the_game.new_quadrant = false;
         writeln!(sout)?;
         if !shortmove {
             if a == Command::WarpEngines
@@ -71,7 +71,7 @@ pub fn do_path<W: WriteColor>(
                 sout.flush()?;
             }
             match the_game
-                .sect
+                .sector_map
                 .sector_contents_at_coords(y7 as i32, x7 as i32)
             {
                 SectorContents::Klingon => {
@@ -88,7 +88,7 @@ pub fn do_path<W: WriteColor>(
                                 the_game.k3[i] = 0.0;
                             }
                         }
-                        the_game.k -= 1;
+                        the_game.quadrant_klingons -= 1;
                         the_game.total_klingons -= 1;
                     }
                 }
@@ -101,7 +101,7 @@ pub fn do_path<W: WriteColor>(
                     // Command #5
                     {
                         // Torpedo
-                        the_game.b = 2;
+                        the_game.quadrant_starbases = 2;
                     }
                 }
                 SectorContents::Star => {
@@ -139,7 +139,7 @@ pub fn do_path<W: WriteColor>(
             the_game.s1 = y2 as i32;
             the_game.s2 = x2 as i32;
             let the_sector = the_game.current_sector();
-            the_game.sect[the_sector] = 2;
+            the_game.sector_map[the_sector] = 2;
             // Flag to show we stayed within quadrant
             the_game.saved_command = 2.into();
         } else if a == Command::PhotonTorpedos
@@ -148,17 +148,21 @@ pub fn do_path<W: WriteColor>(
             // Torpedo
             write!(sout, " DESTROYED!")?;
             sout.flush()?;
-            if the_game.b == 2 {
-                the_game.b = 0;
+            if the_game.quadrant_starbases == 2 {
+                the_game.quadrant_starbases = 0;
                 write!(sout, " . . . GOOD WORK!")?;
                 sout.flush()?;
             }
             writeln!(sout)?;
             let old_sector = Sector::new(y7 as i32, x7 as i32);
-            the_game.sect[old_sector] = SectorContents::Empty.into(); // Clear old sector (set it to 1)
+            the_game.sector_map[old_sector] = SectorContents::Empty.into(); // Clear old sector (set it to 1)
             let current_quadrant = Quadrant::new(the_game.q1, the_game.q2);
-            the_game.quad[current_quadrant] =
-                QuadrantContents::new(the_game.k, the_game.b, the_game.s, false);
+            the_game.quadrant_map[current_quadrant] = QuadrantContents::new(
+                the_game.quadrant_klingons,
+                the_game.quadrant_starbases,
+                the_game.s,
+                false,
+            );
         }
     } else {
         // Out of quadrant -- move to new quadrant or torpedo miss
@@ -166,10 +170,14 @@ pub fn do_path<W: WriteColor>(
         // Command #1
         {
             // Move
-            the_game.newquad = true;
-            the_game.q1 = (the_game.q1 as f64 + the_game.w * y3 + (the_game.s1 as f64 + 0.5) / 8.0)
+            the_game.new_quadrant = true;
+            the_game.q1 = (the_game.q1 as f64
+                + the_game.warp * y3
+                + (the_game.s1 as f64 + 0.5) / 8.0)
                 .floor() as i32;
-            the_game.q2 = (the_game.q2 as f64 + the_game.w * x3 + (the_game.s2 as f64 + 0.5) / 8.0)
+            the_game.q2 = (the_game.q2 as f64
+                + the_game.warp * x3
+                + (the_game.s2 as f64 + 0.5) / 8.0)
                 .floor() as i32;
             the_game.q1 = (the_game.q1 as i32 - lt(the_game.q1 as f64, 0.0)
                 + gt(the_game.q1 as f64, 7.0)) as i32;

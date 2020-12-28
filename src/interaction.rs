@@ -105,16 +105,6 @@ pub fn fgetline<R: BufRead>(_stream: &mut R) -> Result<String, StarTrustError> {
         buff
     })
 } // End fgetline
-  // int
-  //
-  // for 0;j<blen;j++ []0;
-  // fgets(,blen,stream);
-  // for (j=strlen()-1;j>=0;j--)
-  // {
-  // if (buff[j]>31) break;
-  // [j]=0;
-  // }_tdtodo!()
-  //char *buff,int blen,FILE *stream
 
 /// Get Y or N from user and place result in ans
 pub fn yesno<R: BufRead>(
@@ -161,26 +151,6 @@ pub fn beep() {
 pub fn buzz() {
     speaker(Hertz::new(50.0f64), Duration::from_millis(200));
 } // End buzz
-
-// intcc=;cc>;cc--%c%c+  cc;int*()cprintf/, char *buff
-// buff[*bl]=NULLC;
-// mut case:break;default :;{}()//0pio;swi()swi()case:break;l>0%c%cl--;
-//[]NULLCdefault :cprintf()int charint
-// l++// buff[l]=NULLC//break;[l]=cprintf%ccase :break;case : break;case:break;
-/*
-int i,           return ok;
-
-   i=;
-   if ((i<03)) i=1;
-   swi(i)
-   {
-      case 0 :                 break;
-      case 1 :                 break;
-      case 2 :
-         break;
-      case 3 :
-         break;ok=ok=ok=    okok=;;;;    ok: bool;
- */
 
 /// Check for valid input characters
 fn charokay(cc: u8, mode: InputMode) -> bool {

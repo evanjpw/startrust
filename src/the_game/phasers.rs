@@ -6,7 +6,6 @@ use termcolor::WriteColor;
 use crate::interaction::{getinp, InputMode, InputValue};
 use crate::the_game::damage::Component;
 use crate::the_game::{GameState, Sector};
-use crate::util::fnd;
 use crate::{StResult, TheGame};
 
 const PHASERS: Component = Component::Phasers; // Component # 3
@@ -36,13 +35,13 @@ pub fn phasers<R: BufRead, W: WriteColor>(
                 x = 0.0;
                 break;
             }
-            if x <= the_game.e {
+            if x <= the_game.energy {
                 break;
             }
-            writeln!(sout, "ONLY GOT {:03}", the_game.e)?; // The printf format was "%.3f"
+            writeln!(sout, "ONLY GOT {:03}", the_game.energy)?; // The printf format was "%.3f"
         }
-        the_game.e -= x;
-        let y3 = the_game.k as f64;
+        the_game.energy -= x;
+        let y3 = the_game.quadrant_klingons as f64;
         for i in 0..8 {
             if the_game.k3[i] > 0.0 {
                 let f = fnd(the_game.k1[i], the_game.k2[i], the_game.s1, the_game.s2);
@@ -53,23 +52,23 @@ pub fn phasers<R: BufRead, W: WriteColor>(
                 the_game.show_hit(sout, i, "KLINGON AT", n, h)?;
                 if the_game.k3[i] <= 0.0 {
                     writeln!(sout, "**KLINGON DESTROYED**")?;
-                    the_game.k -= 1;
+                    the_game.quadrant_klingons -= 1;
                     the_game.total_klingons -= 1;
                     let sector = Sector::new(the_game.k1[i], the_game.k2[i]);
-                    the_game.sect[sector] = 1;
+                    the_game.sector_map[sector] = 1;
                     let quadrant = the_game.current_quadrant();
-                    the_game.quad[quadrant].decrement_klingons();
+                    the_game.quadrant_map[quadrant].decrement_klingons();
                 }
             }
         }
 
         if x > 0.0 {
-            if the_game.e <= 0.0 {
+            if the_game.energy <= 0.0 {
                 /* Ran out of energy */
                 gamecomp = (-1).into();
             }
             the_game.check_for_hits(sout)?;
-            if the_game.e <= 0.0 {
+            if the_game.energy <= 0.0 {
                 /* Ran out of energy */
                 gamecomp = (-1).into();
             }
@@ -84,3 +83,19 @@ pub fn phasers<R: BufRead, W: WriteColor>(
     }
     Ok(gamecomp)
 } /* End phasers */
+
+/// Determine damage hit amount (distance-dependent)
+pub fn fnd(k1_i: i32, k2_i: i32, s1: i32, s2: i32) -> f64 {
+    let k1_i = k1_i as f64; // k1[i]
+    let k2_i = k2_i as f64; // k2[i]
+    let s1 = s1 as f64;
+    let s2 = s2 as f64;
+
+    let dx = (k1_i - s1).abs();
+    let dy = (k2_i - s2).abs();
+
+    let dx2 = dx.powi(2);
+    let dy2 = dy.powi(2);
+
+    (dx2 + dy2).sqrt()
+} /* End fnd */

@@ -5,8 +5,8 @@ use log::debug;
 use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::interaction::draw_number_in_color;
-use crate::the_game::{Sector, SectorContents};
-use crate::util::{find_slot, set_random_x_y};
+use crate::the_game::{find_slot, Sector, SectorContents};
+use crate::util::get_random_x_y;
 use crate::{StResult, TheGame};
 
 #[derive(Copy, Clone, Debug)]
@@ -177,7 +177,7 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
         s = 0;
         k = 0;
     } else {
-        let quad = &mut the_game.quad;
+        let quad = &mut the_game.quadrant_map;
         n = quad[quadrant].as_i32().abs() as i32;
         let int_n = n as i32;
         assert!(int_n >= -999 || int_n <= 999);
@@ -186,10 +186,10 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
         k = n / 100;
     }
     let b: i32 = n / 10 - (k * 10);
-    let (x, y) = set_random_x_y();
+    let (x, y) = get_random_x_y();
     let current_sector = Sector::new(x, y);
     the_game.set_current_sector(current_sector);
-    let sect = &mut the_game.sect;
+    let sect = &mut the_game.sector_map;
 
     for i in 0..8 {
         for j in 0..8 {
@@ -223,7 +223,7 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
         let sector = find_slot(sect);
         sect[sector] = SectorContents::Star.into();
     }
-    the_game.k = k;
-    the_game.b = b as i32;
+    the_game.quadrant_klingons = k;
+    the_game.quadrant_starbases = b as i32;
     the_game.s = s as i32;
 } /* End setupquad */

@@ -9,10 +9,10 @@ use crate::interaction::beep;
 use crate::interaction::{delay, getcourse, getwarp};
 use crate::the_game::commands::Command;
 use crate::the_game::damage::Component;
+use crate::the_game::path::do_path;
 use crate::the_game::GameState;
 use crate::util::rnd;
 use crate::{StResult, TheGame};
-use crate::the_game::path::do_path;
 
 const WARP: Component = Component::WarpEngines; // Component #0
 
@@ -30,7 +30,7 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
     loop {
         loop {
             c = getcourse(sin, sout)?;
-            the_game.c = c;
+            the_game.course = c;
             if c < 9.0 {
                 break;
             }
@@ -63,7 +63,7 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
         return Ok(());
     }
     the_game.check_for_hits(sout)?;
-    if the_game.e <= 0.0 {
+    if the_game.energy <= 0.0 {
         /* Ran out of energy */
         *gamecomp = (-1).into();
         return Ok(());
@@ -114,12 +114,12 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
         }
     }
     let n = (w * 8.0).floor();
-    the_game.w = w;
-    the_game.e = the_game.e - n - n + 0.5;
+    the_game.warp = w;
+    the_game.energy = the_game.energy - n - n + 0.5;
     the_game.current_stardate += 1i32;
     let current_sector = the_game.current_sector();
-    the_game.sect[current_sector] = 1;
-    if the_game.current_stardate > the_game.game_defs.t9 {
+    the_game.sector_map[current_sector] = 1;
+    if the_game.current_stardate > the_game.game_defs.ending_stardate {
         /* Ran out of time! */
         *gamecomp = (-1).into();
         return Ok(());
@@ -127,7 +127,7 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
     do_path(the_game, sout, *a, n)?;
     *a = the_game.saved_command;
     // let i = n;
-    if the_game.e <= 0.0 {
+    if the_game.energy <= 0.0 {
         // Ran out of energy
         *gamecomp = (-1).into();
         return Ok(());

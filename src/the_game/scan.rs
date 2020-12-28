@@ -6,6 +6,23 @@ use crate::the_game::damage::Component;
 use crate::the_game::quadrant::Quadrant;
 use crate::{StResult, TheGame};
 
+/// Set up string for lr scan or galactic records
+fn qstr<W: WriteColor>(
+    the_game: &TheGame,
+    sout: &mut W,
+    i: i32,
+    j: i32,
+    is_current: bool,
+) -> StResult<()> {
+    let quadrant = Quadrant::new(i, j);
+    // The printf format string was "%3.3i", which has a width of 3 digits and has leading 0s.
+    // I _think_.
+    let value = the_game.quadrant_map[quadrant];
+    let emphasize = is_current;
+    value.draw(sout, emphasize)?;
+    Ok(())
+} /* End qstr */
+
 /// Do long-range scan
 pub fn l_range_scan<W: WriteColor>(the_game: &mut TheGame, sout: &mut W) -> StResult<()> {
     let i = Component::LongRangeSensors; // Component #2
@@ -28,8 +45,14 @@ pub fn l_range_scan<W: WriteColor>(the_game: &mut TheGame, sout: &mut W) -> StRe
                 sout.reset()?;
             } else {
                 let quadrant = Quadrant::new(i as i32, j as i32);
-                the_game.quad[quadrant].show();
-                the_game.qstr(sout, i as i32, j as i32, the_game.is_current_quadrant(i, j))?;
+                the_game.quadrant_map[quadrant].show();
+                qstr(
+                    the_game,
+                    sout,
+                    i as i32,
+                    j as i32,
+                    the_game.is_current_quadrant(i, j),
+                )?;
             }
         }
         writeln!(sout)?;
@@ -54,7 +77,13 @@ pub fn galactic_records<W: WriteColor>(the_game: &TheGame, sout: &mut W) -> StRe
         for j in 0..8 {
             write!(sout, "  ")?;
             sout.flush()?;
-            the_game.qstr(sout, i as i32, j as i32, the_game.is_current_quadrant(i, j))?;
+            qstr(
+                the_game,
+                sout,
+                i as i32,
+                j as i32,
+                the_game.is_current_quadrant(i, j),
+            )?;
         }
         writeln!(sout)?;
     }
@@ -68,7 +97,7 @@ pub fn s_range_scan<W: WriteColor>(the_game: &mut TheGame, sout: &mut W, a: i32)
     /* Initial entry into quadrant */
     {
         the_game.check_for_hits(sout)?;
-        if the_game.e <= 0.0 {
+        if the_game.energy <= 0.0 {
             /* Ran out of energy! */
             return Ok(());
         }
@@ -81,7 +110,7 @@ pub fn s_range_scan<W: WriteColor>(the_game: &mut TheGame, sout: &mut W, a: i32)
     }
     for i in 0..8 {
         for j in 0..8 {
-            write!(sout, "{} ", the_game.sect.sector_char_at_coords(i, j))?;
+            write!(sout, "{} ", the_game.sector_map.sector_char_at_coords(i, j))?;
             sout.flush()?;
         }
         write!(sout, "  ")?;
@@ -91,7 +120,7 @@ pub fn s_range_scan<W: WriteColor>(the_game: &mut TheGame, sout: &mut W, a: i32)
                 writeln!(
                     sout,
                     "YEARS = {}",
-                    the_game.game_defs.t9 - the_game.current_stardate
+                    the_game.game_defs.ending_stardate - the_game.current_stardate
                 )?;
             }
             1 => {
@@ -99,8 +128,8 @@ pub fn s_range_scan<W: WriteColor>(the_game: &mut TheGame, sout: &mut W, a: i32)
             }
             2 => {
                 write!(sout, "CONDITION: ")?;
-                sout.set_color(&the_game.cond.get_color_spec())?;
-                writeln!(sout, "{}", the_game.cond.as_ref())?;
+                sout.set_color(&the_game.current_condition.get_color_spec())?;
+                writeln!(sout, "{}", the_game.current_condition.as_ref())?;
                 sout.reset()?;
             }
             3 => {
@@ -110,14 +139,14 @@ pub fn s_range_scan<W: WriteColor>(the_game: &mut TheGame, sout: &mut W, a: i32)
                 writeln!(sout, "SECTOR = {} - {}", the_game.s1 + 1, the_game.s2 + 1)?;
             }
             5 => {
-                writeln!(sout, "ENERGY = {:03}", the_game.e)?; // printf format string was "%.3f"
+                writeln!(sout, "ENERGY = {:03}", the_game.energy)?; // printf format string was "%.3f"
             }
             6 => {
                 writeln!(
                     sout,
                     "{} = {}",
                     Component::PhotonTorpedoes.as_ref(),
-                    the_game.p
+                    the_game.photo_torpedoes
                 )?;
             }
             7 => {

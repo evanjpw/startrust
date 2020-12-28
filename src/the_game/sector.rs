@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use num_enum::{FromPrimitive, IntoPrimitive};
 
-// use crate::util::{find_slot, set_random_x_y};
+use crate::util::get_random_x_y;
 #[allow(unused_imports)]
 use crate::TheGame;
 
@@ -94,3 +94,14 @@ impl SectorMap {
         index.to_char()
     }
 }
+
+/// Find an unoccupied sector
+pub fn find_slot(sector_map: &SectorMap) -> Sector {
+    loop {
+        let (x, y) = get_random_x_y();
+        let sector = Sector::new(x, y);
+        if sector_map.sector_contents_at(sector) == SectorContents::Empty {
+            return sector;
+        }
+    }
+} /* End findslot */
