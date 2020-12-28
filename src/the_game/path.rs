@@ -118,7 +118,7 @@ pub fn do_path<W: WriteColor>(
                 }
                 _ => {
                     return Err(StarTrustError::GameStateError(
-                        "Ship blocked by unknown object".to_string()
+                        "Ship blocked by unknown object".to_string(),
                     ))
                 }
             }

@@ -20,30 +20,30 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
     the_game: &mut TheGame,
     sin: &mut R,
     sout: &mut W,
-    a: &mut Command,
+    command: &mut Command,
     gamecomp: &mut GameState,
     moved: &mut bool,
 ) -> StResult<()> {
-    let mut w = 0f64;
-    let mut c;
+    let mut warp = 0f64;
+    let mut course;
 
     loop {
         loop {
-            c = getcourse(sin, sout)?;
-            the_game.course = c;
-            if c < 9.0 {
+            course = getcourse(sin, sout)?;
+            the_game.course = course;
+            if course < 9.0 {
                 break;
             }
             beep();
         }
-        if c >= 1.0 {
+        if course >= 1.0 {
             loop {
-                w = getwarp(sin, sout)?;
-                if (w <= 0.0) || (w > 12.0) {
-                    c = 10.0;
+                warp = getwarp(sin, sout)?;
+                if (warp <= 0.0) || (warp > 12.0) {
+                    course = 10.0;
                     break;
                 }
-                if the_game.damage.is_damaged(WARP.into(), false) && (w > 0.2) {
+                if the_game.damage.is_damaged(WARP.into(), false) && (warp > 0.2) {
                     write!(sout, "{} DAMAGED; MAX IS 0.2; ", WARP.as_ref())?;
                     sout.flush()?;
                     the_game.damage.show_est_repair_time(sout, WARP.into())?;
@@ -54,11 +54,11 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
                 beep();
             }
         }
-        if c < 9.0 {
+        if course < 9.0 {
             break;
         }
     }
-    if c < 1.0 {
+    if course < 1.0 {
         // Abort move
         return Ok(());
     }
@@ -106,13 +106,13 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
     }
     for i in 0..6 {
         if the_game.damage.is_damaged(i, true) && the_game.damage.reduce_and_normalize_damage(i) {
-                let component: Component = i.try_into()?;
-                writeln!(sout, "{} ARE FIXED!", component.as_ref())?;
-                beep();
+            let component: Component = i.try_into()?;
+            writeln!(sout, "{} ARE FIXED!", component.as_ref())?;
+            beep();
         }
     }
-    let n = (w * 8.0).floor();
-    the_game.warp = w;
+    let n = (warp * 8.0).floor();
+    the_game.warp = warp;
     the_game.energy = the_game.energy - n - n + 0.5;
     the_game.current_stardate += 1i32;
     let current_sector = the_game.current_sector();
@@ -122,8 +122,8 @@ pub fn do_warp<R: BufRead, W: WriteColor>(
         *gamecomp = (-1).into();
         return Ok(());
     }
-    do_path(the_game, sout, *a, n)?;
-    *a = the_game.saved_command;
+    do_path(the_game, sout, *command, n)?;
+    *command = the_game.saved_command;
     // let i = n;
     if the_game.energy <= 0.0 {
         // Ran out of energy

@@ -229,30 +229,33 @@ impl TheGame {
         let x2 = self.game_defs.x2;
         let y1 = self.game_defs.y1;
         let y2 = self.game_defs.y2;
-        let mut k = self.quadrant_klingons;
+        let mut klingons = self.quadrant_klingons;
+        let mut starbases;
 
         for i in 0..8 {
             for j in 0..8 {
-                k = 0;
+                klingons = 0;
                 let mut n = rnd();
                 if n < x1 {
                     n *= 64.0;
-                    k = lt(n, y1) as i32 - (y as i32);
-                    k = k
+                    klingons = lt(n, y1) as i32 - (y as i32);
+                    klingons = -(klingons
                         + lt(n, x2) as i32
                         + lt(n, y2) as i32
                         + lt(n, 0.08) as i32
                         + lt(n, 0.03) as i32
-                        + lt(n, 0.01) as i32;
-                    total_klingons -= k as i32;
+                        + lt(n, 0.01) as i32);
+                    total_klingons += klingons as i32;
                 }
-                self.quadrant_starbases = gt(rnd(), self.game_defs.starbase_frequency);
-                total_starbases -= self.quadrant_starbases as i32; //self.cas f64 self.was i32
+
+                starbases = -gt(rnd(), self.game_defs.starbase_frequency);
+                total_starbases += starbases;
+
+                let stars = (rnd() * (x as f64) + (y as f64)).floor() as i32;
+
                 let quadrant = Quadrant::new(i, j);
-                self.quadrant_map[quadrant] = QuadrantContents::from_i32(
-                    (k * 100 + (self.quadrant_starbases * 10))
-                        - (rnd() * (x as f64) + (y as f64)).floor() as i32,
-                );
+                self.quadrant_map[quadrant] =
+                    QuadrantContents::new(klingons, starbases, stars, true);
             }
         }
 
@@ -265,17 +268,18 @@ impl TheGame {
         if total_starbases <= 0 {
             let (starbase_x, starbase_y) = get_random_x_y();
             let quadrant = Quadrant::new(starbase_x, starbase_y);
-            let mut quadrant_value = self.quadrant_map[quadrant].as_i32();
+            let mut quadrant_value = self.quadrant_map[quadrant];
             debug!(
-                "About to subtract ten from quadrant {} with value {}",
+                "About to add one to quadrant {} with value {:?}",
                 quadrant, quadrant_value
             );
-            quadrant_value -= 10;
+
+            quadrant_value.starbases += 1;
             debug!(
-                "About to store value {} in quadrant {}",
+                "About to store value {:?} in quadrant {}",
                 quadrant_value, quadrant
             );
-            self.quadrant_map[quadrant] = QuadrantContents::from_i32(quadrant_value);
+            self.quadrant_map[quadrant] = quadrant_value;
             total_starbases = 1;
         }
 
@@ -287,7 +291,7 @@ impl TheGame {
         )?;
         writeln!(sout, " THE NUMBER OF STARBASES IS {}.\n", total_starbases)?;
 
-        self.quadrant_klingons = k;
+        self.quadrant_klingons = klingons;
         self.total_klingons = total_klingons;
         self.klingons_destroyed = total_klingons;
         self.total_starbases = total_starbases;
@@ -396,9 +400,7 @@ impl TheGame {
             self.k2[i] + 1,
             n
         )
-        .map_err(|e| {
-            e.into()
-        })
+        .map_err(|e| e.into())
     } /* End showhit */
 
     fn is_docked(&self) -> bool {
@@ -440,24 +442,27 @@ impl TheGame {
     pub fn play<R: BufRead, W: WriteColor>(&mut self, sin: &mut R, sout: &mut W) -> StResult<()> {
         let mut gamecomp = GameState::InProgress;
         let mut moved: bool = false;
-        let mut a = self.saved_command;
+        let mut command = self.saved_command;
 
-        debug!("Init gamecomp={:?}, moved={}, a={:?}", gamecomp, moved, a);
+        debug!(
+            "Init gamecomp={:?}, moved={}, a={:?}",
+            gamecomp, moved, command
+        );
         self.init(sout)?;
         self.new_quadrant = true;
         debug!(
             "Done initing gamecomp={:?}, moved={}, a={:?}, newquad={}",
-            gamecomp, moved, a, self.new_quadrant
+            gamecomp, moved, command, self.new_quadrant
         );
 
         while !gamecomp.is_done() {
             if self.new_quadrant {
                 setup_quadrant(self);
-                a = self.saved_command;
+                command = self.saved_command;
             }
             self.new_quadrant = false;
             moved = false;
-            s_range_scan(self, sout, a.into())?;
+            s_range_scan(self, sout, command.into())?;
             if self.energy <= 0.0 {
                 /* Ran out of energy */
                 gamecomp = GameState::Lost;
@@ -470,22 +475,22 @@ impl TheGame {
                     let ebuff = getinp(sin, sout, 7, 2.into())?;
                     writeln!(sout)?;
                     match ebuff {
-                        InputValue::Blank => a = Command::Undefined,
-                        InputValue::Esc => a = (-99).into(),
+                        InputValue::Blank => command = Command::Undefined,
+                        InputValue::Esc => command = (-99).into(),
                         InputValue::InputString(cmdbuff) => {
-                            a = Command::from_str(cmdbuff.as_str()).unwrap_infallible();
+                            command = Command::from_str(cmdbuff.as_str()).unwrap_infallible();
                         }
                     }
-                    match a {
+                    match command {
                         Command::WarpEngines => {
                             //case 1 :
                             // Warp engines
-                            do_warp(self, sin, sout, &mut a, &mut gamecomp, &mut moved)?;
+                            do_warp(self, sin, sout, &mut command, &mut gamecomp, &mut moved)?;
                         }
                         Command::ShortRangeScan => {
                             //case 2 :
                             // Short-range scan
-                            s_range_scan(self, sout, a.into())?;
+                            s_range_scan(self, sout, command.into())?;
                         }
                         Command::LongRangeScan => {
                             //case 3 :
@@ -501,7 +506,7 @@ impl TheGame {
                         Command::PhotonTorpedos => {
                             //case 5 :
                             // Photon torpedoes
-                            do_torpedoes(self, sin, sout, &mut a, &mut gamecomp)?;
+                            do_torpedoes(self, sin, sout, &mut command, &mut gamecomp)?;
                         }
                         Command::GalacticRecords => {
                             //case 6 :
@@ -589,84 +594,3 @@ impl TheGame {
         Ok(())
     }
 }
-// let int_a;int_let Ok(cmd) = cmdbuff.parse::<i32>()int_cmd; else {}int_99
-// if a == Command::Undefined {
-//     continue;
-// }
-// if a == ().into(){}
-// continue;//     a = int_a.into()//         break; // sout
-// } else if (int_a < 1) || (int_a > 6) {
-// } else {//         gamecomp = GameState::Quit;
-// -99
-// const DS: &'static [&'static str] = &[, , , , , , ];    //.damageDS[]usizeDS[]//i32DS[4]DS[]DS[]
-// unimplementeddamage;unimplementedDS[]DS[] [] >0>  0[]<>_[]>  0[]>  0.try_try_([0] > 0) []+=??
-// []>  0 []>0//intoi
-// let env = Env::default(); //from_env(Env::default()::pretty_env_logger    let
-//    if let Some(s) = env.get_filter() {        else{"warn"}
-// if let Some(s) = env.get_writestyle() {// use env_logger::Env;
-//     builder.parse_write_style&s // }default_orstdout, BufRead, ""the_game_defsgame_defs.
-//doublevoid = 0.0le.
-/*l
-struct time t;
-double r1,r2,r3,r4;
-gettime(&t);, TryInto
-r1=t.ti_hund;
-r2=t.ti_sec;
-r3=t.ti_min;
-r4=t.ti_hour;
-r2=floor(r2*(100.0/60.0));
-r3=floor(r3*(100.0/60.0));
-r4=floor(r4*(100.0/24.0));
-rn=r1/100.0+r2/10000.0+r3/1000000.0+r4/100000000.0;
-return rn;
-*/
-// / Get fractional part of (double) real number
-// fn frac(r: f64) -> f64 {
-//     r.fract()// } /* End frac */// return Ok(x);
-//selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself..
-//selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
-/*
-int ,,x7,y7,i,j,;
-double x3,y3,n,rn,h,;
-char ans,fbuff[81],[7]es[16],cmdbuff[8];
- */
-//selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
-// selfselfselfselfselfselfselfself..//xselfselfselfselfselff64.self.
-// use std::convert::AsRef;//Component ,//selfselfselfselfselfselfselfselfselfselfselfselfselfself
-// selfselfself.selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
-//selfself..
-// selfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfselfself
-// intcc=;cc>;cc--%c%c+  cc;int*()cprintf/, char *buff
-// buff[*bl]=NULLC;
-// mut case:break;default :;{}()//0pio;swi()swi()case:break;l>0%c%cl--;
-//[]NULLCdefault :cprintf()int charint
-// l++// buff[l]=NULLC//break;[l]=cprintf%ccase :break;case : break;case:break;
-/*
-int i,           return ok;
-
-   i=;
-   if ((i<03)) i=1;
-   swi(i)
-   {
-      case 0 :                 break;
-      case 1 :                 break;
-      case 2 :
-         break;
-      case 3 :
-         break;ok=ok=ok=    okok=;;;;    ok: bool;
- */
-// int
-//
-// for 0;j<blen;j++ []0;
-// fgets(,blen,stream);
-// for (j=strlen()-1;j>=0;j--)
-// {
-// if (buff[j]>31) break;
-// [j]=0;
-// }_tdtodo!()
-//char *buff,int blen,FILE *stream
-// years: i32,
-// years: (the_game_defs.ending_stardate - the_game_defs.beginning_stardate) as i32,
-// use crate::the_game::{Sector, SectorContents, SectorMap};
-// use crate::util::{find_slot, set_random_x_y};
-// use crate::util::fnd;

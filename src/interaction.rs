@@ -156,19 +156,12 @@ pub fn buzz() {
 fn charokay(cc: u8, mode: InputMode) -> bool {
     match mode {
         InputMode::Mode0 => (cc >= (b' ')) && (cc <= ASCHI),
-        InputMode::Mode1 => {
-            (cc >= b'A') && (cc <= b'Z') || (cc == b'*') || (cc == b' ')
-        }
+        InputMode::Mode1 => (cc >= b'A') && (cc <= b'Z') || (cc == b'*') || (cc == b' '),
         InputMode::Mode2 => {
-            ((cc >= b'0') && (cc <= b'9'))
-                || (cc == b'.')
-                || (cc == b',')
-                || (cc == b'-')
+            ((cc >= b'0') && (cc <= b'9')) || (cc == b'.') || (cc == b',') || (cc == b'-')
         }
         InputMode::Mode3 => {
-            ((cc >= b'A') && (cc <= b'Z'))
-                || ((cc >= b'0') && (cc <= b'9'))
-                || (cc == b' ')
+            ((cc >= b'A') && (cc <= b'Z')) || ((cc >= b'0') && (cc <= b'9')) || (cc == b' ')
         }
         InputMode::InvalidMode => false,
     }
@@ -324,12 +317,12 @@ pub fn getinp<R: BufRead, W: WriteColor>(
                 _ => {
                     // Possibly valid ASCII character
                     if buff.len() < _length {
-                        cc = ((cc as char).to_uppercase().next().ok_or_else(||
+                        cc = ((cc as char).to_uppercase().next().ok_or_else(|| {
                             StarTrustError::GeneralError(format!(
                                 "Error converting {} to upper case",
                                 cc
-                            )),
-                        )?) as u8;
+                            ))
+                        })?) as u8;
                         if charokay(cc, md.into()) {
                             buff.push(cc);
                             write!(sout, "{}", cc as char)?;

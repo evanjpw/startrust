@@ -84,9 +84,7 @@ impl Damage {
         sout: &mut W,
         i: usize,
     ) -> StResult<()> {
-        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.0[i]).map_err(|e| {
-            e.into()
-        })
+        writeln!(sout, "{} YEARS ESTIMATED FOR REPAIR.\n", self.0[i]).map_err(|e| e.into())
     } /* End showestreptime */
 
     /// Show damaged item

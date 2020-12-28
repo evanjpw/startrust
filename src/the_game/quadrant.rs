@@ -12,7 +12,7 @@ use crate::{StResult, TheGame};
 #[derive(Copy, Clone, Debug)]
 pub struct QuadrantContents {
     klingons: i32,
-    starbases: i32,
+    pub(crate) starbases: i32,
     stars: i32,
     hidden: bool,
 }
@@ -27,6 +27,7 @@ impl QuadrantContents {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_i32(quadrant_contents: i32) -> Self {
         let hidden = !quadrant_contents.is_positive();
         let quadrant_contents = quadrant_contents.abs();
@@ -47,6 +48,7 @@ impl QuadrantContents {
         }
     }
 
+    #[allow(dead_code)]
     pub fn as_i32(&self) -> i32 {
         let value = self.klingons * 100 + self.starbases * 10 + self.stars;
         if self.hidden {
@@ -68,6 +70,15 @@ impl QuadrantContents {
     pub fn decrement_klingons(&mut self) {
         self.klingons -= 1;
         assert!(self.klingons >= 0)
+    }
+
+    fn validate(&self) {
+        assert!(self.klingons >= 0, "klingons: {} < 0", self.klingons);
+        assert!(self.klingons < 10, "kilngons: {} >= 10", self.klingons);
+        assert!(self.starbases >= 0, "starbases: {} < 0", self.starbases);
+        assert!(self.starbases <= 1, "starbases: {} > 1", self.starbases);
+        assert!(self.stars >= 0, "stars: {} < 0", self.stars);
+        assert!(self.stars < 10, "stars: {} >= 10", self.stars);
     }
 
     pub fn draw<W: WriteColor>(&self, sout: &mut W, bold: bool) -> StResult<()> {
@@ -144,6 +155,10 @@ impl QuadrantMap {
             quad: vec![vec![QuadrantContents::default(); 8]; 8],
         }
     }
+
+    pub fn show_quadrant(&mut self, quadrant: Quadrant) {
+        self[quadrant].show();
+    }
 }
 
 impl Index<Quadrant> for QuadrantMap {
@@ -168,24 +183,26 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
     let s9 = the_game.s9();
     // Set the  global "command" to "None".
     the_game.saved_command = 0.into();
-    let n: i32;
-    let s: i32;
-    let k: i32;
+
+    let stars: i32;
+    let klingons: i32;
+    let starbases: i32;
 
     if !quadrant.is_in_range() {
-        n = 0;
-        s = 0;
-        k = 0;
+        stars = 0;
+        klingons = 0;
+        starbases = 0;
     } else {
         let quad = &mut the_game.quadrant_map;
-        n = quad[quadrant].as_i32().abs() as i32;
-        let int_n = n as i32;
-        assert!(int_n >= -999 || int_n <= 999);
-        quad[quadrant] = QuadrantContents::from_i32(int_n);
-        s = n - (n / 10) * 10;
-        k = n / 100;
+        let n = quad[quadrant];
+        quad[quadrant].validate();
+        debug!("validating quadrant {}", quadrant);
+        quad.show_quadrant(quadrant);
+        stars = n.stars;
+        klingons = n.klingons;
+        starbases = n.starbases;
     }
-    let b: i32 = n / 10 - (k * 10);
+
     let (x, y) = get_random_x_y();
     let current_sector = Sector::new(x, y);
     the_game.set_current_sector(current_sector);
@@ -204,7 +221,7 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
     for i in 0..8 {
         the_game.k3[i] = 0.0;
         kx = 8;
-        if (i as i32) < k {
+        if (i as i32) < klingons {
             let sector = find_slot(sect);
             kx = sector.x();
             ky = sector.y();
@@ -214,16 +231,16 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
         the_game.k1[i] = kx;
         the_game.k2[i] = ky;
     }
-    if b > 0 {
+    if starbases > 0 {
         let sector = find_slot(sect);
         sect[sector] = SectorContents::Starbase.into();
     }
 
-    for _ in 0..s {
+    for _ in 0..stars {
         let sector = find_slot(sect);
         sect[sector] = SectorContents::Star.into();
     }
-    the_game.quadrant_klingons = k;
-    the_game.quadrant_starbases = b as i32;
-    the_game.s = s as i32;
+    the_game.quadrant_klingons = klingons;
+    the_game.quadrant_starbases = starbases;
+    the_game.s = stars;
 } /* End setupquad */
