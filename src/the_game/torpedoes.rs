@@ -15,7 +15,7 @@ pub fn do_torpedoes<R: BufRead, W: WriteColor>(
     the_game: &mut TheGame,
     sin: &mut R,
     sout: &mut W,
-    a: &mut Command,
+    command: &mut Command,
     gamecomp: &mut GameState,
 ) -> StResult<()> {
     if the_game.damage.is_damaged(4, false) {
@@ -46,8 +46,8 @@ pub fn do_torpedoes<R: BufRead, W: WriteColor>(
     the_game.photo_torpedoes -= 1;
     write!(sout, "TRACK: ")?;
     sout.flush()?;
-    do_path(the_game, sout, *a, n)?;
-    *a = the_game.saved_command;
+    do_path(the_game, sout, *command, n)?;
+    *command = the_game.saved_command;
     // let i = n;
     if the_game.energy <= 0.0 {
         /* Ran out of energy */

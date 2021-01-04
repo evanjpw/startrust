@@ -242,5 +242,5 @@ pub fn setup_quadrant(the_game: &mut TheGame) {
     }
     the_game.quadrant_klingons = klingons;
     the_game.quadrant_starbases = starbases;
-    the_game.s = stars;
+    the_game.quadrant_stars = stars;
 } /* End setupquad */

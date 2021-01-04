@@ -157,7 +157,7 @@ pub struct TheGame {
     k1: Vec<i32>,
     k2: Vec<i32>,
     k3: Vec<f64>,
-    s: i32,
+    quadrant_stars: i32,
 }
 
 impl TheGame {
@@ -192,7 +192,7 @@ impl TheGame {
             quadrant_starbases: 0,
             current_condition: Condition::Undefined,
             saved_command: Command::Undefined, // the global version of `a`
-            s: 0,
+            quadrant_stars: 0,
             ending_stardate: the_game_defs.ending_stardate,
         }
     }
@@ -445,13 +445,13 @@ impl TheGame {
         let mut command = self.saved_command;
 
         debug!(
-            "Init gamecomp={:?}, moved={}, a={:?}",
+            "Init gamecomp={:?}, moved={}, command={:?}",
             gamecomp, moved, command
         );
         self.init(sout)?;
         self.new_quadrant = true;
         debug!(
-            "Done initing gamecomp={:?}, moved={}, a={:?}, newquad={}",
+            "Done initing gamecomp={:?}, moved={}, command={:?}, newquad={}",
             gamecomp, moved, command, self.new_quadrant
         );
 

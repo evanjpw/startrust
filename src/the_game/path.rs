@@ -14,7 +14,7 @@ use crate::{StResult, StarTrustError, TheGame};
 pub fn do_path<W: WriteColor>(
     the_game: &mut TheGame,
     sout: &mut W,
-    a: Command,
+    command: Command,
     n: f64,
 ) -> StResult<()> {
     let mut y1 = the_game.s1 as f64 + 0.5;
@@ -22,8 +22,8 @@ pub fn do_path<W: WriteColor>(
     let mut y3 = (the_game.course - 1.0) as f64 * FRAC_PI_4; // `FRAC_PI_4` _was_ `0.785398`
     let x3 = y3.cos();
     y3 = -(y3.sin());
-    let mut inquad = true;
-    let mut shortmove = a == Command::WarpEngines; // Command #1
+    let mut in_quadrant = true;
+    let mut short_move = command == Command::WarpEngines; // Command #1
     let mut y7 = 0;
     let mut x7 = 0;
     let mut y2 = the_game.game_defs.y2;
@@ -36,11 +36,11 @@ pub fn do_path<W: WriteColor>(
         y7 = y2 as i32;
         x7 = x2 as i32;
         if (x7 < 0) || (x7 > 7) || (y7 < 0) || (y7 > 7) {
-            inquad = false;
-            shortmove = false;
+            in_quadrant = false;
+            short_move = false;
             break;
         }
-        if a == Command::PhotonTorpedos
+        if command == Command::PhotonTorpedos
         // Command #5
         {
             // Show torpedo track
@@ -54,17 +54,17 @@ pub fn do_path<W: WriteColor>(
         // Content type 1
         {
             // Object blocking move or hit by torpedo
-            shortmove = false;
+            short_move = false;
             break;
         }
     }
 
-    if inquad {
+    if in_quadrant {
         // Still in quadrant -- short move, block, or torpedo hit
         the_game.new_quadrant = false;
         writeln!(sout)?;
-        if !shortmove {
-            if a == Command::WarpEngines
+        if !short_move {
+            if command == Command::WarpEngines
             // Command #1
             {
                 write!(sout, "BLOCKED BY ")?;
@@ -79,7 +79,7 @@ pub fn do_path<W: WriteColor>(
                     // Klingon
                     write!(sout, "KLINGON")?;
                     sout.flush()?;
-                    if a == Command::PhotonTorpedos
+                    if command == Command::PhotonTorpedos
                     // Command #5
                     {
                         // Torpedo
@@ -97,7 +97,7 @@ pub fn do_path<W: WriteColor>(
                     // Starbase
                     write!(sout, "STARBASE")?;
                     sout.flush()?;
-                    if a == Command::PhotonTorpedos
+                    if command == Command::PhotonTorpedos
                     // Command #5
                     {
                         // Torpedo
@@ -109,11 +109,11 @@ pub fn do_path<W: WriteColor>(
                     // Star
                     write!(sout, "STAR")?;
                     sout.flush()?;
-                    if a == Command::PhotonTorpedos
+                    if command == Command::PhotonTorpedos
                     // Command #5
                     {
                         // Torpedo
-                        the_game.s -= 1;
+                        the_game.quadrant_stars -= 1;
                     }
                 }
                 _ => {
@@ -122,7 +122,7 @@ pub fn do_path<W: WriteColor>(
                     ))
                 }
             }
-            if a == Command::WarpEngines
+            if command == Command::WarpEngines
             // Command #1
             {
                 // Enterprise move
@@ -133,7 +133,7 @@ pub fn do_path<W: WriteColor>(
                 x7 = x2 as i32;
             }
         }
-        if a == Command::WarpEngines
+        if command == Command::WarpEngines
         // Command #1
         {
             the_game.s1 = y2 as i32;
@@ -142,7 +142,7 @@ pub fn do_path<W: WriteColor>(
             the_game.sector_map[the_sector] = 2;
             // Flag to show we stayed within quadrant
             the_game.saved_command = 2.into();
-        } else if a == Command::PhotonTorpedos
+        } else if command == Command::PhotonTorpedos
         // Command #5
         {
             // Torpedo
@@ -160,13 +160,13 @@ pub fn do_path<W: WriteColor>(
             the_game.quadrant_map[current_quadrant] = QuadrantContents::new(
                 the_game.quadrant_klingons,
                 the_game.quadrant_starbases,
-                the_game.s,
+                the_game.quadrant_stars,
                 false,
             );
         }
     } else {
         // Out of quadrant -- move to new quadrant or torpedo miss
-        if a == Command::WarpEngines
+        if command == Command::WarpEngines
         // Command #1
         {
             // Move
@@ -184,7 +184,7 @@ pub fn do_path<W: WriteColor>(
             the_game.q2 = (the_game.q2 as i32 - lt(the_game.q2 as f64, 0.0)
                 + gt(the_game.q2 as f64, 7.0)) as i32;
             the_game.normalize_current_quadrant();
-        } else if a == Command::PhotonTorpedos
+        } else if command == Command::PhotonTorpedos
         // Command #5
         {
             // Torpedo
