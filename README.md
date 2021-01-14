@@ -81,7 +81,7 @@ I always liked this game, and I felt as if revivifying it would be
 fun for everyone, and maybe even inspiring. And it was (see below)!
 
 Surprisingly, as I sat down to write this README, I discovered that
-[Emanuele Bolognesi rewrote it in Lua](ps://emabolo.com/article/i-rewrote-the-1978-text-only-super-star-trek-game)
+[Emanuele Bolognesi rewrote it in Lua](https://emabolo.com/article/i-rewrote-the-1978-text-only-super-star-trek-game)
 a few months earlier
 [and wrote a medium post about it](https://medium.com/@emabolo/i-rewrote-the-1978-star-trek-game-and-this-is-what-happened-f4425f8d586).
 His rocks. You should play his.
