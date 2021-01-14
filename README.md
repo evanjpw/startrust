@@ -34,7 +34,8 @@ I stopped playing when Rogue (the most roguelike roguelike!) appeared,
 and then I played its various descendants, but I remembered "Star Trek"
 as being fun.
 
-During this time, Bob Sorem did some rewriting, and he produced a C version.
+During this time, Bob Sorem did some rewriting, and he produced
+[a C version](http://www.bobsoremweb.com/startrek.html).
 It is this C version that I actually used as my template.
 
 The game live on in the ["BSD Games" package](ps://wiki.linuxquestions.org/wiki/BSD_games),
