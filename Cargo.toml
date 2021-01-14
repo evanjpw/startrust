@@ -5,7 +5,7 @@ version = "0.1.0"
 authors = ["Evan Williams <ejw@fig.com>"]
 edition = "2018"
 readme = "README.md"
-repository = "https://bitbucket.org/evanjpw/startrust.git"
+repository = "https://github.com/evanjpw/startrust.git"
 categories = []
 exclude = ["./.detritus"]
 
