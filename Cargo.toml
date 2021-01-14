@@ -1,6 +1,6 @@
 [package]
 name = "startrust"
-description = ""
+description = "A revification of the Star Trek game from 1978, rewritten in Rust"
 version = "0.1.0"
 authors = ["Evan Williams <ejw@fig.com>"]
 edition = "2018"
@@ -9,6 +9,7 @@ repository = "https://github.com/evanjpw/startrust.git"
 categories = ["games"]
 keywords = ["retro", "game"]
 exclude = ["./.detritus"]
+license = "unlicence"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
