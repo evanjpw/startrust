@@ -3,8 +3,8 @@
 _A ridiculous revivification of a game from 1978
 (or maybe 1976, or maybe 1967)_
 
-![crates.io](https://img.shields.io/crates/v/startrust.svg)
-![docs.rs](https://docs.rs/startrust/badge.svg)
+[![crates.io](https://img.shields.io/crates/v/startrust.svg)](https://crates.io/crates/startrust)
+[![docs.rs](https://docs.rs/startrust/badge.svg)](https://docs.rs/startrust)
 
 ![An old school character mode game screen](docs/game.png)
 
